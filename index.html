@@ -1,0 +1,5352 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ERRA BUS - Official APSRTC Vijayawada Smart Transit Network</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            errared: {
+              DEFAULT: '#C8232C',
+              50: '#fdf2f2',
+              100: '#fde8e8',
+              500: '#C8232C',
+              600: '#b01a23',
+              700: '#91131a',
+            },
+            errablue: {
+              DEFAULT: '#0B5FFF',
+              50: '#eff6ff',
+              100: '#dbeafe',
+              500: '#0B5FFF',
+              600: '#0846B8',
+              700: '#06348c',
+            },
+            erranavy: '#0B1220',
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- FontAwesome & Google Fonts -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    
+    /* Universal Dropdown & Select Option Visibility in Light & Dark Mode */
+    select {
+      color-scheme: light dark;
+    }
+    select option {
+      background-color: #ffffff !important;
+      color: #0f172a !important;
+      padding: 8px 12px;
+      font-weight: 600;
+    }
+    .dark select option {
+      background-color: #1e293b !important;
+      color: #f8fafc !important;
+      padding: 8px 12px;
+      font-weight: 600;
+    }
+
+    /* Custom Visible Scrollbars for High-Density Lists */
+    #container-route-selector::-webkit-scrollbar,
+    #container-stop-timeline::-webkit-scrollbar,
+    #container-bus-list::-webkit-scrollbar,
+    ::-webkit-scrollbar {
+      width: 7px;
+      height: 7px;
+    }
+    #container-route-selector::-webkit-scrollbar-track,
+    #container-stop-timeline::-webkit-scrollbar-track,
+    #container-bus-list::-webkit-scrollbar-track,
+    ::-webkit-scrollbar-track {
+      background: rgba(148, 163, 184, 0.15);
+      border-radius: 9999px;
+    }
+    .dark #container-route-selector::-webkit-scrollbar-track,
+    .dark #container-stop-timeline::-webkit-scrollbar-track,
+    .dark #container-bus-list::-webkit-scrollbar-track,
+    .dark ::-webkit-scrollbar-track {
+      background: rgba(30, 41, 59, 0.5);
+    }
+    #container-route-selector::-webkit-scrollbar-thumb,
+    #container-stop-timeline::-webkit-scrollbar-thumb,
+    #container-bus-list::-webkit-scrollbar-thumb,
+    ::-webkit-scrollbar-thumb {
+      background: rgba(200, 35, 44, 0.65);
+      border-radius: 9999px;
+    }
+    #container-route-selector::-webkit-scrollbar-thumb:hover,
+    #container-stop-timeline::-webkit-scrollbar-thumb:hover,
+    #container-bus-list::-webkit-scrollbar-thumb:hover,
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(200, 35, 44, 0.95);
+    }
+
+    /* Pulsing halo effect */
+    @keyframes pulse-ring {
+      0% { transform: scale(0.8); opacity: 0.8; }
+      80%, 100% { transform: scale(2.2); opacity: 0; }
+    }
+    .pulse-halo {
+      position: relative;
+    }
+    .pulse-halo::before {
+      content: '';
+      position: absolute;
+      top: -6px; left: -6px; right: -6px; bottom: -6px;
+      border-radius: 50%;
+      background-color: rgba(16, 185, 129, 0.4);
+      animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+      z-index: -1;
+    }
+
+    .bus-marker-wrapper {
+      transition: transform 0.4s ease-out;
+    }
+
+    .leaflet-popup-content-wrapper {
+      border-radius: 12px;
+      padding: 0;
+      overflow: hidden;
+    }
+    .leaflet-popup-content {
+      margin: 0;
+      line-height: 1.4;
+    }
+
+    /* ── Home section scrollable ── */
+    #view-home {
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* ── GPS banner animation ── */
+    #gps-permission-banner {
+      animation: slideDown 0.35s ease-out;
+    }
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Bus cards fully responsive on tiny screens ── */
+    @media (max-width: 400px) {
+      .bus-card-actions { flex-direction: column; gap: 0.5rem; }
+      .bus-card-stats   { flex-wrap: wrap; gap: 0.4rem; }
+      .radius-pill-row  { flex-wrap: wrap; gap: 0.35rem; }
+    }
+
+    /* ── Prevent text overflow in route badges on small screens ── */
+    .route-badge-text { word-break: keep-all; white-space: nowrap; }
+
+    /* ── Ensure bottom nav doesn't cover content on all devices ── */
+    @supports (padding-bottom: env(safe-area-inset-bottom)) {
+      .pb-safe { padding-bottom: calc(env(safe-area-inset-bottom) + 72px); }
+    }
+
+    /* ── All tab sections scroll independently ────────────────────────── */
+    .tab-content {
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      /* Space at bottom clears the fixed mobile nav bar (≈72px) + breathing room */
+      padding-bottom: 88px;
+    }
+    /* On large screens the nav bar is gone; keep only a small gap */
+    @media (min-width: 1024px) {
+      .tab-content { padding-bottom: 16px; }
+    }
+
+    /* ── Map tab is special: it must fill height, not scroll vertically ── */
+    #view-map {
+      overflow: hidden;
+      padding-bottom: 0;
+    }
+    /* The map canvas itself fills the available height */
+    #view-map .map-shell {
+      flex: 1;
+      min-height: 0;
+    }
+
+    /* ── Route Directory: two-mode scroll strategy ─────────────────────── */
+
+    /* DESKTOP (md+): section does NOT scroll — inner columns do.
+       IMPORTANT: use :not(.hidden) so these rules don't override
+       Tailwind's display:none when the tab is inactive.            */
+    @media (min-width: 768px) {
+      #view-routes:not(.hidden) {
+        overflow: hidden;
+        padding-bottom: 0;
+        display: flex;
+        flex-direction: column;
+      }
+      /* Card fills remaining height — scoped to routes-card only */
+      #view-routes:not(.hidden) #routes-card {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+      }
+      /* Left column fills and scrolls route list */
+      #view-routes:not(.hidden) #routes-left-col {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+      /* Right column fills and scrolls stop timeline */
+      #view-routes:not(.hidden) #routes-right-col {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+      /* Route list: fills left column — single scroller, no fixed px height */
+      #view-routes:not(.hidden) #container-route-selector {
+        flex: 1;
+        min-height: 0;
+        height: auto;
+        max-height: none;
+        overflow-y: auto;
+      }
+      /* Stop timeline: fills right column below header card */
+      #view-routes:not(.hidden) #container-stop-timeline {
+        flex: 1;
+        min-height: 0;
+        height: auto;
+        max-height: none;
+        overflow-y: auto;
+      }
+    }
+
+    /* MOBILE (< md): section scrolls, inner boxes bounded */
+    @media (max-width: 767px) {
+      #view-routes {
+        overflow-y: auto !important;
+      }
+      #container-route-selector {
+        height: auto !important;
+        max-height: 42vh !important;
+        overflow-y: auto !important;
+      }
+      #container-stop-timeline {
+        height: auto !important;
+        max-height: 42vh !important;
+        overflow-y: auto !important;
+      }
+    }
+
+    /* Planner and saved: no inner max-height needed (section scrolls) */
+    #container-planner-results,
+    #container-saved-items {
+      max-height: none;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 dark:bg-erranavy text-slate-800 dark:text-slate-100 h-full flex flex-col transition-colors duration-200">
+
+  <!-- Top Announcement Bar / Offline Banner -->
+  <div id="pwa-offline-alert" class="hidden bg-amber-500 text-slate-950 px-4 py-1.5 text-xs font-semibold text-center flex items-center justify-center space-x-2 shadow-inner">
+    <i class="fa-solid fa-triangle-exclamation"></i>
+    <span id="txt-offline-msg">Offline mode active. Displaying cached timetable and last known GPS telemetry.</span>
+  </div>
+
+  <!-- Main Header -->
+  <header class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-40 shadow-sm transition-colors">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2.5 flex items-center justify-between">
+      
+      <!-- Brand Logo & Title -->
+      <div class="flex items-center space-x-3 cursor-pointer" onclick="app.switchTab('home')">
+        <div class="w-11 h-11 rounded-xl overflow-hidden shadow-lg border border-slate-700/50 flex items-center justify-center bg-slate-900 dark:bg-slate-800">
+          <img src="logo.png" alt="ERRA BUS Logo" class="w-full h-full object-contain" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"/>
+          <svg viewBox="0 0 500 500" class="w-full h-full" style="display:none">
+            <circle cx="250" cy="220" r="140" fill="none" stroke="#0B5FFF" stroke-width="32" stroke-dasharray="700 120" transform="rotate(-40 250 220)"/>
+            <path d="M 230 360 C 230 300, 270 280, 250 220" fill="none" stroke="#0B5FFF" stroke-width="28" stroke-linecap="round"/>
+            <path d="M 120 190 Q 120 170 150 165 L 340 135 Q 375 130 380 160 L 385 240 Q 385 260 360 265 L 140 265 Q 120 265 120 240 Z" fill="#C8232C" />
+            <path d="M 310 150 L 365 145 Q 375 145 375 165 L 375 220 L 310 220 Z" fill="#ffffff" />
+            <rect x="140" y="180" width="35" height="35" rx="4" fill="#ffffff"/>
+            <rect x="185" y="175" width="35" height="35" rx="4" fill="#ffffff"/>
+            <rect x="230" y="170" width="35" height="35" rx="4" fill="#ffffff"/>
+            <circle cx="165" cy="265" r="22" fill="#1e293b"/>
+            <circle cx="165" cy="265" r="9" fill="#e2e8f0"/>
+            <circle cx="295" cy="265" r="22" fill="#1e293b"/>
+            <circle cx="295" cy="265" r="9" fill="#e2e8f0"/>
+            <path d="M 250 130 C 230 130 215 145 215 165 C 215 190 250 225 250 225 C 250 225 285 190 285 165 C 285 145 270 130 250 130 Z" fill="#0B5FFF" stroke="#ffffff" stroke-width="3"/>
+            <circle cx="250" cy="162" r="10" fill="#ffffff"/>
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center space-x-1.5">
+            <span class="text-2xl font-black tracking-tight text-errared">ERRA</span>
+            <span class="text-2xl font-black tracking-tight text-slate-900 dark:text-white">BUS</span>
+            <span class="bg-errablue text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded-md uppercase tracking-wider shadow-sm">VERIFIED</span>
+          </div>
+          <p class="text-[11px] text-slate-500 dark:text-slate-400 font-semibold tracking-wide" id="lbl-tagline">APSRTC Vijayawada Division • 97 Active Routes</p>
+        </div>
+      </div>
+
+      <!-- Desktop Navigation Tabs -->
+      <nav class="hidden lg:flex items-center space-x-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200 dark:border-slate-700/60">
+        <button onclick="app.switchTab('home')" id="tab-home" class="nav-btn px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-errared text-white shadow-sm">
+          <i class="fa-solid fa-house mr-1.5"></i><span data-i18n="home">Home</span>
+        </button>
+        <button onclick="app.switchTab('routes')" id="tab-routes" class="nav-btn px-4 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-600 dark:text-slate-300 hover:text-errared dark:hover:text-white">
+          <i class="fa-solid fa-bus mr-1.5"></i><span data-i18n="routes">Routes Directory (97)</span>
+        </button>
+        <button onclick="app.switchTab('map')" id="tab-map" class="nav-btn px-4 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-600 dark:text-slate-300 hover:text-errared dark:hover:text-white">
+          <i class="fa-solid fa-map-location-dot mr-1.5"></i><span data-i18n="map">Live Map</span>
+        </button>
+        <button onclick="app.switchTab('planner')" id="tab-planner" class="nav-btn px-4 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-600 dark:text-slate-300 hover:text-errared dark:hover:text-white">
+          <i class="fa-solid fa-route mr-1.5"></i><span data-i18n="planner">Journey Planner</span>
+        </button>
+        <button onclick="app.switchTab('saved')" id="tab-saved" class="nav-btn px-4 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-600 dark:text-slate-300 hover:text-errared dark:hover:text-white">
+          <i class="fa-solid fa-bookmark mr-1.5"></i><span data-i18n="saved">Saved</span>
+        </button>
+      </nav>
+
+      <!-- Language & Theme Utilities -->
+      <div class="flex items-center space-x-2">
+        <div id="badge-provenance" class="hidden sm:flex items-center space-x-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" title="APSRTC Official Schedule & Live GPS">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span id="provenance-text">100% Verified Routes</span>
+        </div>
+
+        <button onclick="app.toggleLanguage()" class="px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center space-x-1 hover:bg-slate-200 dark:hover:bg-slate-700 transition">
+          <i class="fa-solid fa-globe text-errablue"></i>
+          <span id="lang-btn-label">తెలుగు</span>
+        </button>
+
+        <button onclick="app.toggleDarkMode()" class="p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition">
+          <i id="theme-icon" class="fa-solid fa-moon"></i>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Service Alerts Banner -->
+  <div class="bg-gradient-to-r from-slate-900 via-erranavy to-slate-900 border-b border-slate-800 text-slate-200 py-1.5 px-4 text-xs">
+    <div class="max-w-7xl mx-auto flex items-center justify-between">
+      <div class="flex items-center space-x-2 overflow-hidden">
+        <span class="bg-amber-500 text-slate-950 text-[10px] font-black px-1.5 py-0.5 rounded tracking-wide uppercase">APSRTC BULLETIN</span>
+        <div class="truncate text-slate-300 font-medium" id="ticker-service-alert">
+          Verified Timetable Matrix: 48 City Routes & 49 Suburban Metro Routes active across Vijayawada & Amaravati region.
+        </div>
+      </div>
+      <button onclick="app.showAlertsModal()" class="text-errablue hover:text-blue-400 font-semibold underline text-[11px] whitespace-nowrap ml-2">
+        View Service Notes
+      </button>
+    </div>
+  </div>
+
+  <!-- Main App Content Shell -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-4 lg:p-6 pb-0 overflow-hidden flex flex-col min-h-0">
+
+    <!-- TAB 1: HOME PAGE -->
+    <section id="view-home" class="tab-content flex-1 space-y-4 min-h-0 pb-safe">
+      
+      <!-- GPS Location & Search Panel -->
+      <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200 dark:border-slate-800 shadow-sm">
+        
+        <!-- Top Bar GPS Status -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100 dark:border-slate-800">
+          <div class="flex items-center space-x-3">
+            <div class="w-9 h-9 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center pulse-halo">
+              <i class="fa-solid fa-location-crosshairs text-base" id="gps-status-icon"></i>
+            </div>
+            <div>
+              <p class="text-xs text-slate-500 dark:text-slate-400 font-semibold">Active Transit Hub / Your Location</p>
+              <p class="text-sm font-bold text-slate-900 dark:text-white" id="lbl-user-location">Kaleswara Rao Market (KR Market)</p>
+            </div>
+          </div>
+
+          <!-- GPS Permission Banner -->
+          <div id="gps-permission-banner" class="w-full mt-2 mb-1 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-700 rounded-xl px-3.5 py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 hidden">
+            <div class="flex items-center space-x-2">
+              <i class="fa-solid fa-location-crosshairs text-blue-500 animate-pulse shrink-0"></i>
+              <span class="text-xs font-semibold text-blue-800 dark:text-blue-200 leading-snug">Allow location access to show buses near <strong>you</strong> in real-time</span>
+            </div>
+            <button onclick="app.requestGPSLocation()" class="bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white text-xs font-extrabold px-4 py-2 rounded-lg shadow-sm whitespace-nowrap transition w-full sm:w-auto">
+              <i class="fa-solid fa-location-dot mr-1.5"></i>Allow GPS Access
+            </button>
+          </div>
+
+          <!-- Location Selector Hubs -->
+          <div class="flex items-center space-x-2" id="hub-selector-row">
+            <span class="text-xs font-semibold text-slate-500">Change Hub:</span>
+            <select id="select-location-hub" onchange="app.changeUserLocation(this.value)" class="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-bold rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-errared text-slate-900 dark:text-slate-100 cursor-pointer shadow-sm">
+              <option value="krmarket">Kaleswara Rao Market (KR Market)</option>
+              <option value="railwaystn">Vijayawada Railway Station</option>
+              <option value="pnbs">PNBS Central Bus Station</option>
+              <option value="benzcircle">Benz Circle Junction</option>
+              <option value="autonagar">Auto Nagar Gate</option>
+              <option value="ramavarappadu">Ramavarappadu Ring</option>
+              <option value="kanuru">Kanuru Vrindavan Colony</option>
+              <option value="poranki">Poranki Junction</option>
+              <option value="kankipadu">Kankipadu Bus Stand</option>
+              <option value="gollapudi">Gollapudi One Center</option>
+              <option value="kondapalli">Kondapalli Station</option>
+              <option value="ibrahimpatnam">Ibrahimpatnam Ring</option>
+              <option value="gannavaram">Gannavaram Airport Road</option>
+              <option value="mangalagiri">Mangalagiri Bus Stand</option>
+              <option value="nunna">Nunna Mango Market</option>
+              <option value="vuyyuru">Vuyyuru RTC Depot</option>
+              <option value="hanumanjunction">Hanuman Junction Stand</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Universal Stop & Route Search Input -->
+        <div class="relative">
+          <div class="flex items-center bg-slate-100 dark:bg-slate-800/90 rounded-xl px-3.5 py-2.5 border border-slate-200 dark:border-slate-700 focus-within:ring-2 focus-within:ring-errared transition">
+            <i class="fa-solid fa-magnifying-glass text-slate-400 mr-2.5 text-base"></i>
+            <input type="text" id="input-search-stop" oninput="app.handleSearchInput(this.value)" placeholder="Search any of 97 routes (e.g., 116, 5G, 252, 1G) or destination (e.g., Gannavaram, Kankipadu, Kondapalli)..." class="bg-transparent w-full text-sm font-medium focus:outline-none text-slate-900 dark:text-white placeholder-slate-400">
+            <button onclick="app.clearSearch()" id="btn-clear-search" class="hidden text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+
+          <!-- Auto-complete Suggestions Dropdown -->
+          <div id="dropdown-search-results" class="hidden absolute left-0 right-0 top-full mt-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl z-50 overflow-hidden max-h-80 overflow-y-auto">
+            <!-- Dynamic search results populated here -->
+          </div>
+        </div>
+
+        <!-- Radius Selector Pills & Type Filters -->
+        <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center flex-wrap gap-1.5 radius-pill-row">
+            <span class="text-xs font-bold text-slate-500" data-i18n="radius">Radius:</span>
+            <button onclick="app.setRadiusFilter(1)" class="btn-radius px-3 py-1 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700" data-radius="1">1 km</button>
+            <button onclick="app.setRadiusFilter(2)" class="btn-radius px-3 py-1 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700" data-radius="2">2 km</button>
+            <button onclick="app.setRadiusFilter(3)" class="btn-radius px-3 py-1 rounded-lg text-xs font-bold bg-errared text-white shadow-sm" data-radius="3">3 km</button>
+            <button onclick="app.setRadiusFilter(5)" class="btn-radius px-3 py-1 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700" data-radius="5">5 km</button>
+            <button onclick="app.setRadiusFilter(10)" class="btn-radius px-3 py-1 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700" data-radius="10">10 km</button>
+          </div>
+
+          <div class="flex items-center space-x-1.5 overflow-x-auto pb-1 sm:pb-0">
+            <select id="filter-bus-type" onchange="app.applyFilters()" class="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-semibold rounded-lg px-2.5 py-1 text-slate-900 dark:text-slate-100">
+              <option value="ALL">All Service Types</option>
+              <option value="Metro Express">Metro Express</option>
+              <option value="City Ordinary">City Ordinary</option>
+              <option value="City Sheetal AC">City Sheetal AC</option>
+              <option value="Suburban Express">Suburban Express</option>
+            </select>
+            <select id="filter-status" onchange="app.applyFilters()" class="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-semibold rounded-lg px-2.5 py-1 text-slate-900 dark:text-slate-100">
+              <option value="ALL">All Status</option>
+              <option value="Live">Live Active</option>
+              <option value="Delayed">Delayed</option>
+            </select>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Real-Time Nearby Buses Feed -->
+      <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm">
+        
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3 pb-2.5 border-b border-slate-100 dark:border-slate-800">
+          <div class="flex items-center space-x-2">
+            <h2 class="text-base font-extrabold text-slate-900 dark:text-white" data-i18n="nearby_title">Live Buses at Active Hub</h2>
+            <span id="badge-bus-count" class="bg-errared/10 text-errared text-xs font-black px-2 py-0.5 rounded-full">0 buses</span>
+          </div>
+          <div class="flex items-center space-x-3 text-xs text-slate-500 dark:text-slate-400">
+            <span class="flex items-center font-bold text-emerald-600 dark:text-emerald-400">
+              <i class="fa-solid fa-clock-rotate-left mr-1.5 text-errared"></i> Chronological Arrival Order
+            </span>
+            <span class="hidden sm:inline text-slate-300 dark:text-slate-700">•</span>
+            <span class="flex items-center font-medium">
+              <i class="fa-solid fa-arrows-rotate animate-spin mr-1 text-errablue"></i> Live GPS Feed
+            </span>
+          </div>
+        </div>
+
+        <!-- Bus Cards Scroll Container -->
+        <div id="container-bus-list" class="space-y-3 mt-1">
+          <!-- Dynamic Bus Cards Populated Here -->
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- TAB 2: INTERACTIVE LEAFLET MAP -->
+    <section id="view-map" class="tab-content hidden flex-1 flex flex-col h-full">
+      
+      <div class="map-shell relative flex-1 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-md">
+        
+        <div id="map-container" class="w-full h-full min-h-[450px] z-10"></div>
+
+        <div class="absolute top-3 right-3 z-20 flex flex-col space-y-2">
+          <button onclick="app.recenterMap()" class="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-lg flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 font-bold" title="Center on Active Hub / GPS">
+            <i class="fa-solid fa-crosshairs text-errared"></i>
+          </button>
+          <button onclick="app.toggleMapStyle()" id="btn-map-style" class="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-lg flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 font-bold" title="Toggle Streets / Satellite">
+            <i class="fa-solid fa-earth-asia text-emerald-500"></i>
+          </button>
+          <button onclick="app.toggleTrafficOverlay()" id="btn-traffic-toggle" class="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-lg flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 font-bold" title="Toggle Active Routes Layer">
+            <i class="fa-solid fa-layer-group text-errablue"></i>
+          </button>
+        </div>
+
+        <div id="banner-active-route" class="hidden absolute top-3 left-3 z-20 bg-slate-900/90 text-white px-3.5 py-2 rounded-xl border border-errablue/50 text-xs font-bold flex items-center space-x-2 shadow-xl backdrop-blur-md">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+          <span>Route <strong id="lbl-tracked-route-code" class="text-amber-400">#--</strong>: <span id="lbl-tracked-route-name" class="text-slate-300 font-normal">--</span></span>
+          <button onclick="app.clearMapRouteHighlight()" class="ml-2 text-slate-400 hover:text-white"><i class="fa-solid fa-circle-xmark"></i></button>
+        </div>
+
+        <div id="banner-tracking-lock" class="hidden absolute top-14 left-3 z-20 bg-slate-900/90 text-white px-3.5 py-1.5 rounded-xl border border-red-500/50 text-xs font-bold flex items-center space-x-2 shadow-xl backdrop-blur-md">
+          <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></span>
+          <span>Tracking Bus <strong id="lbl-locked-bus-id" class="text-amber-400">#--</strong> • <span id="lbl-locked-bus-eta" class="text-emerald-400 font-bold">Calculating ETA...</span></span>
+          <button onclick="app.unlockCamera()" class="ml-2 text-slate-400 hover:text-white"><i class="fa-solid fa-circle-xmark"></i></button>
+        </div>
+
+        <!-- Bus Details Bottom Sheet / Overlay -->
+        <div id="sheet-bus-telemetry" class="hidden absolute bottom-3 left-3 right-3 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-2xl transition-all max-w-xl mx-auto">
+          <div class="flex items-start justify-between border-b border-slate-100 dark:border-slate-800 pb-3 mb-3">
+            <div class="flex items-center space-x-3">
+              <div class="w-12 h-12 rounded-xl bg-errared text-white font-black flex items-center justify-center text-lg shadow-md" id="sheet-route-code">
+                116
+              </div>
+              <div>
+                <div class="flex items-center space-x-2">
+                  <h3 class="text-base font-extrabold text-slate-900 dark:text-white" id="sheet-bus-reg">AP 16 Z 4021</h3>
+                  <span id="sheet-bus-type-badge" class="bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-bold px-2 py-0.5 rounded-full">Metro Express</span>
+                </div>
+                <p class="text-xs text-slate-500 dark:text-slate-400 font-medium" id="sheet-bus-destination">KR Market <i class="fa-solid fa-arrow-right text-[10px] mx-1"></i> Gannavaram</p>
+              </div>
+            </div>
+            <button onclick="app.closeBottomSheet()" class="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-white">
+              <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+          </div>
+
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center mb-3">
+            <div class="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 p-2 rounded-xl">
+              <span class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block">Arrival ETA</span>
+              <span class="text-sm font-black text-emerald-600 dark:text-emerald-400 font-mono" id="sheet-eta">-- mins</span>
+            </div>
+            <div class="bg-slate-100 dark:bg-slate-800/80 p-2 rounded-xl">
+              <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Distance</span>
+              <span class="text-sm font-black text-slate-900 dark:text-white font-mono" id="sheet-dist">-- km</span>
+            </div>
+            <div class="bg-slate-100 dark:bg-slate-800/80 p-2 rounded-xl">
+              <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Speed / Occ.</span>
+              <span class="text-xs font-black text-slate-800 dark:text-slate-200" id="sheet-speed">28 km/h</span>
+            </div>
+            <div class="bg-slate-100 dark:bg-slate-800/80 p-2 rounded-xl">
+              <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Next Stop</span>
+              <span class="text-xs font-bold text-slate-800 dark:text-slate-200 truncate block" id="sheet-next-stop">Benz Circle</span>
+            </div>
+          </div>
+
+          <div class="flex space-x-2">
+            <button onclick="app.viewFullRouteTimeline()" class="flex-1 bg-errared hover:bg-errared-600 text-white py-2 rounded-xl text-xs font-bold transition shadow-sm flex items-center justify-center space-x-1">
+              <i class="fa-solid fa-list-check"></i>
+              <span>View Full Route Information</span>
+            </button>
+            <button onclick="app.openIssueReportModal()" class="px-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 transition" title="Report discrepancy">
+              <i class="fa-solid fa-flag"></i>
+            </button>
+          </div>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- TAB 3: JOURNEY PLANNER -->
+    <section id="view-planner" class="tab-content hidden flex-1 space-y-4">
+      
+      <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200 dark:border-slate-800 shadow-sm">
+        <h2 class="text-base font-extrabold text-slate-900 dark:text-white mb-4 flex items-center space-x-2">
+          <i class="fa-solid fa-route text-errared"></i>
+          <span data-i18n="planner_heading">Vijayawada Journey Matrix Solver (97 Routes)</span>
+        </h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+          
+          <!-- Origin Dropdown -->
+          <div class="md:col-span-5 relative">
+            <label class="text-[11px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">Origin / Start Terminal</label>
+            <div class="flex items-center bg-slate-50 dark:bg-slate-800/80 rounded-xl p-1.5 border border-slate-200 dark:border-slate-700">
+              <i class="fa-solid fa-circle-dot text-emerald-500 ml-2 mr-2 shrink-0"></i>
+              <select id="select-planner-origin" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 w-full text-xs font-bold p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-errared cursor-pointer shadow-sm">
+                <!-- Dynamically populated with high-contrast options -->
+              </select>
+            </div>
+          </div>
+
+          <!-- Swap Button -->
+          <div class="md:col-span-2 flex justify-center py-1 md:py-0">
+            <button onclick="app.swapPlannerLocations()" class="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 hover:border-errared hover:text-errared transition flex items-center justify-center shadow">
+              <i class="fa-solid fa-arrows-rotate md:rotate-90"></i>
+            </button>
+          </div>
+
+          <!-- Destination Dropdown -->
+          <div class="md:col-span-5 relative">
+            <label class="text-[11px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">Destination Terminal</label>
+            <div class="flex items-center bg-slate-50 dark:bg-slate-800/80 rounded-xl p-1.5 border border-slate-200 dark:border-slate-700">
+              <i class="fa-solid fa-location-dot text-errared ml-2 mr-2 shrink-0"></i>
+              <select id="select-planner-destination" class="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 w-full text-xs font-bold p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-errared cursor-pointer shadow-sm">
+                <!-- Dynamically populated with high-contrast options -->
+              </select>
+            </div>
+          </div>
+
+        </div>
+
+        <button onclick="app.solveJourney()" class="mt-4 w-full bg-errared hover:bg-errared-600 text-white font-extrabold text-xs uppercase tracking-wider py-3 rounded-xl transition shadow-md flex items-center justify-center space-x-2">
+          <i class="fa-solid fa-compass"></i>
+          <span>Search Direct Routes & Optimal Connections</span>
+        </button>
+
+      </div>
+
+      <!-- Solutions Matrix -->
+      <div id="container-planner-results" class="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+        <div class="text-center py-8 text-slate-400">
+          <i class="fa-solid fa-route text-4xl mb-2 opacity-50"></i>
+          <p class="text-xs font-semibold">Select Origin and Destination to find matching APSRTC city and suburban routes.</p>
+        </div>
+      </div>
+
+    </section>
+
+
+    <!-- TAB 4: ROUTE DIRECTORY & STOP TIMELINE (VERIFIED 97 ROUTES) -->
+    <section id="view-routes" class="tab-content hidden flex-1 space-y-4">
+      
+      <div id="routes-card" class="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row gap-4">
+        
+        <!-- Left: Route Directory List & Filter Engine -->
+        <div id="routes-left-col" class="w-full md:w-5/12 lg:w-4/12 border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-800 pr-0 md:pr-4 flex flex-col gap-3">
+          
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-extrabold text-slate-900 dark:text-white" data-i18n="route_dir">APSRTC Route Network</h3>
+            <span id="badge-total-routes-count" class="bg-errared/10 text-errared text-[11px] font-black px-2 py-0.5 rounded-full">97 Routes</span>
+          </div>
+
+          <!-- Category Filter Pills -->
+          <div class="flex space-x-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl border border-slate-200/70 dark:border-slate-700/60">
+            <button onclick="app.setRouteCategoryFilter('ALL')" id="filter-btn-all" class="route-cat-btn flex-1 py-1 rounded-lg text-[11px] font-extrabold transition bg-errared text-white shadow-sm">All (97)</button>
+            <button onclick="app.setRouteCategoryFilter('City')" id="filter-btn-city" class="route-cat-btn flex-1 py-1 rounded-lg text-[11px] font-extrabold transition text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700">City (48)</button>
+            <button onclick="app.setRouteCategoryFilter('Suburban Metro')" id="filter-btn-suburban" class="route-cat-btn flex-1 py-1 rounded-lg text-[11px] font-extrabold transition text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700">Suburban (49)</button>
+          </div>
+
+          <!-- Route Quick Filter Search Input -->
+          <div class="relative">
+            <div class="flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl px-3 py-2 border border-slate-200 dark:border-slate-700 focus-within:ring-2 focus-within:ring-errared">
+              <i class="fa-solid fa-magnifying-glass text-slate-400 mr-2 text-xs"></i>
+              <input type="text" id="input-filter-routes" oninput="app.filterRouteList(this.value)" placeholder="Filter by route no. (e.g. 116, 5G, 252)..." class="bg-transparent w-full text-xs font-semibold focus:outline-none text-slate-900 dark:text-white placeholder-slate-400">
+              <button onclick="app.clearRouteListFilter()" id="btn-clear-route-filter" class="hidden text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5">
+                <i class="fa-solid fa-xmark text-xs"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Scroll Indicator Hint -->
+          <div class="flex items-center justify-between text-[10px] text-slate-400 font-semibold px-1">
+            <span>Scroll below to view all routes</span>
+            <i class="fa-solid fa-arrow-down-short-wide text-errared"></i>
+          </div>
+
+          <!-- Dynamic Route Cards Scroll Area with Explicit Height and Scroll Bounds -->
+          <div id="container-route-selector" class="overflow-y-auto space-y-2 pr-2 scroll-smooth overscroll-contain">
+            <!-- Dynamic Route Buttons Populated Here -->
+          </div>
+
+        </div>
+
+        <!-- Right: Comprehensive Route Information Dossier & Timeline -->
+        <div id="routes-right-col" class="w-full md:w-7/12 lg:w-8/12 flex flex-col min-h-0">
+          
+          <!-- Route Profile Header Card -->
+          <div class="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-4 mb-3 shrink-0">
+            <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+              <div>
+                <div class="flex items-center space-x-2.5 mb-1.5 flex-wrap gap-y-1">
+                  <span id="lbl-route-badge" class="px-2.5 py-1 rounded-lg bg-errared text-white text-base font-black tracking-wide shadow-sm">
+                    ROUTE 1
+                  </span>
+                  <span id="lbl-route-category" class="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                    City Ordinary
+                  </span>
+                  <span class="bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-extrabold px-2 py-0.5 rounded-full flex items-center">
+                    <span class="w-1.5 h-1.5 rounded-full bg-blue-500 mr-1 animate-pulse"></span> APSRTC Verified
+                  </span>
+                </div>
+                <h2 id="lbl-route-title" class="text-base sm:text-lg font-black text-slate-900 dark:text-white leading-tight uppercase tracking-tight">
+                  IBRAHIMPATNAM TO PORANKI
+                </h2>
+                <p id="lbl-route-via-pill" class="text-[11px] font-bold text-slate-500 dark:text-slate-300 mt-0.5 hidden">
+                  <!-- Via text populated dynamically -->
+                </p>
+                <p id="lbl-route-te-title" class="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+                  ఇబ్రహీంపట్నం రింగ్ నుండి పోరంకి సెంటర్
+                </p>
+              </div>
+
+              <!-- Direction Switch Button -->
+              <button onclick="app.toggleRouteDirection()" class="self-start sm:self-auto px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 hover:border-errared hover:text-errared border border-slate-300 dark:border-slate-700 transition text-xs font-bold flex items-center space-x-1.5 shadow-sm">
+                <i class="fa-solid fa-arrow-right-arrow-left"></i>
+                <span id="btn-direction-label">Invert Direction</span>
+              </button>
+            </div>
+
+            <!-- Route Metrics Matrix Bar -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 pt-3 border-t border-slate-200/70 dark:border-slate-700/60 text-center">
+              <div class="bg-white dark:bg-slate-800 p-2 rounded-xl border border-slate-100 dark:border-slate-700/50">
+                <span class="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Standard Fare</span>
+                <span class="text-sm font-black text-emerald-600 dark:text-emerald-400" id="lbl-route-fare">₹25</span>
+              </div>
+              <div class="bg-white dark:bg-slate-800 p-2 rounded-xl border border-slate-100 dark:border-slate-700/50">
+                <span class="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Distance</span>
+                <span class="text-sm font-black text-slate-900 dark:text-white" id="lbl-route-distance">24.2 km</span>
+              </div>
+              <div class="bg-white dark:bg-slate-800 p-2 rounded-xl border border-slate-100 dark:border-slate-700/50">
+                <span class="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Avg Duration</span>
+                <span class="text-sm font-black text-slate-900 dark:text-white" id="lbl-route-duration">~45 mins</span>
+              </div>
+              <div class="bg-white dark:bg-slate-800 p-2 rounded-xl border border-slate-100 dark:border-slate-700/50">
+                <span class="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Frequency</span>
+                <span class="text-xs font-bold text-errablue dark:text-blue-400" id="lbl-route-frequency">Every 10-15 mins</span>
+              </div>
+            </div>
+
+            <!-- Quick Action Buttons -->
+            <div class="flex items-center space-x-2 mt-3 pt-2">
+              <button onclick="app.viewSelectedRouteOnMap()" class="flex-1 bg-errablue hover:bg-errablue-600 text-white font-bold py-1.5 px-3 rounded-xl text-xs flex items-center justify-center space-x-1.5 shadow-sm transition">
+                <i class="fa-solid fa-map-location-dot"></i>
+                <span>Track on Live Map</span>
+              </button>
+              <button onclick="app.planJourneyWithCurrentRoute()" class="flex-1 bg-slate-100 dark:bg-slate-800 hover:border-errared hover:text-errared border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold py-1.5 px-3 rounded-xl text-xs flex items-center justify-center space-x-1.5 transition">
+                <i class="fa-solid fa-route"></i>
+                <span>Plan Journey</span>
+              </button>
+            </div>
+
+          </div>
+
+          <!-- Stops Timeline Section Heading -->
+          <div class="flex items-center justify-between px-1 mb-2 shrink-0">
+            <span class="text-xs font-extrabold text-slate-500 uppercase tracking-wider flex items-center">
+              <i class="fa-solid fa-timeline text-errared mr-1.5"></i>
+              <span>Stop-by-Stop Route Sequence</span>
+            </span>
+            <span class="text-[11px] text-slate-400 font-semibold" id="lbl-route-stops-count">0 Stops</span>
+          </div>
+
+          <!-- Vertical Timeline Stops Container with Explicit Scroll Height -->
+          <div id="container-stop-timeline" class="overflow-y-auto space-y-2 pr-2 scroll-smooth overscroll-contain">
+            <!-- Dynamic Stops Rendered Here -->
+          </div>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- TAB 5: SAVED STOPS & FAVORITES -->
+    <section id="view-saved" class="tab-content hidden flex-1 space-y-4">
+      <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200 dark:border-slate-800 shadow-sm">
+        <h2 class="text-base font-extrabold text-slate-900 dark:text-white mb-3 flex items-center space-x-2">
+          <i class="fa-solid fa-bookmark text-amber-500"></i>
+          <span data-i18n="saved_title">Saved Favorite Stops & Routes</span>
+        </h2>
+        <div id="container-saved-items" class="space-y-3">
+          <!-- Dynamic Saved Items -->
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+
+  <!-- FOOTER -->
+  <footer class="hidden lg:block bg-white dark:bg-slate-900 border-t-2 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 py-4 px-4 text-center text-xs mt-2">
+    <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+      <div class="flex items-center space-x-2">
+        <span class="font-extrabold text-errared">ERRA BUS</span>
+        <span>&copy; 2026 APSRTC Vijayawada Smart Transit Network</span>
+      </div>
+      <div class="flex items-center space-x-3 text-[11px]">
+        <span>Verified from APSRTC Timetable</span>
+        <span>•</span>
+        <span class="text-emerald-500 font-bold"><i class="fa-solid fa-circle text-[8px] mr-1"></i> System Online</span>
+      </div>
+    </div>
+  </footer>
+
+
+  <!-- MOBILE BOTTOM NAVIGATION BAR -->
+  <nav class="lg:hidden bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 fixed bottom-0 left-0 right-0 z-40 px-2 py-1.5 flex justify-around items-center shadow-lg">
+    <button onclick="app.switchTab('home')" id="mob-tab-home" class="mob-nav-btn flex flex-col items-center py-1 px-3 text-errared">
+      <i class="fa-solid fa-house text-base"></i>
+      <span class="text-[10px] font-bold mt-0.5" data-i18n="home">Home</span>
+    </button>
+    <button onclick="app.switchTab('routes')" id="mob-tab-routes" class="mob-nav-btn flex flex-col items-center py-1 px-3 text-slate-400 hover:text-errared">
+      <i class="fa-solid fa-bus text-base"></i>
+      <span class="text-[10px] font-bold mt-0.5" data-i18n="routes">Routes</span>
+    </button>
+    <button onclick="app.switchTab('map')" id="mob-tab-map" class="mob-nav-btn flex flex-col items-center py-1 px-3 text-slate-400 hover:text-errared">
+      <i class="fa-solid fa-map-location-dot text-base"></i>
+      <span class="text-[10px] font-bold mt-0.5" data-i18n="map">Map</span>
+    </button>
+    <button onclick="app.switchTab('planner')" id="mob-tab-planner" class="mob-nav-btn flex flex-col items-center py-1 px-3 text-slate-400 hover:text-errared">
+      <i class="fa-solid fa-route text-base"></i>
+      <span class="text-[10px] font-bold mt-0.5" data-i18n="planner">Planner</span>
+    </button>
+    <button onclick="app.switchTab('saved')" id="mob-tab-saved" class="mob-nav-btn flex flex-col items-center py-1 px-3 text-slate-400 hover:text-errared">
+      <i class="fa-solid fa-bookmark text-base"></i>
+      <span class="text-[10px] font-bold mt-0.5" data-i18n="saved">Saved</span>
+    </button>
+  </nav>
+
+
+  <!-- MODAL: ISSUE REPORT / FEEDBACK -->
+  <div id="modal-report-issue" class="hidden fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full p-5 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3 mb-4">
+        <h3 class="text-base font-extrabold text-slate-900 dark:text-white flex items-center space-x-2">
+          <i class="fa-solid fa-triangle-exclamation text-amber-500"></i>
+          <span>Report Bus Discrepancy</span>
+        </h3>
+        <button onclick="app.closeModal('modal-report-issue')" class="text-slate-400 hover:text-slate-600 dark:hover:text-white">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <label class="text-xs font-extrabold text-slate-400 uppercase tracking-wider block mb-1">Issue Category</label>
+          <select id="issue-category" class="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold rounded-xl p-2.5 text-slate-800 dark:text-slate-200">
+            <option value="delay">Bus Delayed / Not on Schedule</option>
+            <option value="overcrowded">Vehicle Overcrowded / Full</option>
+            <option value="route_deviation">Bus Took Wrong Route</option>
+            <option value="gps_mismatch">GPS Location Incorrect</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs font-extrabold text-slate-400 uppercase tracking-wider block mb-1">Details & Remarks</label>
+          <textarea id="issue-comments" rows="3" placeholder="Provide additional details..." class="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium rounded-xl p-2.5 text-slate-800 dark:text-slate-200 focus:outline-none"></textarea>
+        </div>
+      </div>
+
+      <div class="mt-5 flex space-x-2">
+        <button onclick="app.closeModal('modal-report-issue')" class="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-2.5 rounded-xl text-xs border border-slate-300 dark:border-slate-700">Cancel</button>
+        <button onclick="app.submitIssueReport()" class="flex-1 bg-errared hover:bg-errared-600 text-white font-bold py-2.5 rounded-xl text-xs shadow-md">Submit Report</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- MODAL: ALL SERVICE ALERTS -->
+  <div id="modal-service-alerts" class="hidden fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-5 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3 mb-4">
+        <h3 class="text-base font-extrabold text-slate-900 dark:text-white flex items-center space-x-2">
+          <i class="fa-solid fa-bullhorn text-errared"></i>
+          <span>Official APSRTC Service Notes & Bulletins</span>
+        </h3>
+        <button onclick="app.closeModal('modal-service-alerts')" class="text-slate-400 hover:text-slate-600 dark:hover:text-white">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3 max-h-80 overflow-y-auto">
+        <div class="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl">
+          <div class="flex justify-between items-center mb-1">
+            <span class="text-xs font-extrabold text-emerald-600 dark:text-emerald-400">97 Verified Routes Integrated</span>
+            <span class="text-[10px] text-slate-400">Official Release</span>
+          </div>
+          <p class="text-xs text-slate-700 dark:text-slate-300">Complete route numbers, terminals, via stops, and stage fares for 48 City Routes and 49 Suburban Metro Routes are now online and verified.</p>
+        </div>
+
+        <div class="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl">
+          <div class="flex justify-between items-center mb-1">
+            <span class="text-xs font-extrabold text-errablue">Suburban Express Corridors</span>
+            <span class="text-[10px] text-slate-400">Active</span>
+          </div>
+          <p class="text-xs text-slate-700 dark:text-slate-300">High-frequency suburban connectivity from KR Market / Railway Station to Gannavaram (116), Kankipadu (154), Kondapalli (144), Nuzividu (308), and Hanuman Junction (252, 252B).</p>
+        </div>
+
+        <div class="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl">
+          <div class="flex justify-between items-center mb-1">
+            <span class="text-xs font-extrabold text-amber-600 dark:text-amber-400">MG Road & Benz Circle Corridor</span>
+            <span class="text-[10px] text-slate-400">Advisory</span>
+          </div>
+          <p class="text-xs text-slate-700 dark:text-slate-300">High frequency shuttles operating on Routes 1, 1G, 2K, 5G, 10, 23, and 55 with average 8-10 min headway during peak hours.</p>
+        </div>
+      </div>
+
+      <button onclick="app.closeModal('modal-service-alerts')" class="mt-4 w-full bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 font-bold py-2 rounded-xl text-xs">Close</button>
+    </div>
+  </div>
+
+
+  <!-- APP LOGIC & ENGINE JAVASCRIPT -->
+  <script>
+    // ERRA BUS - Verified APSRTC Vijayawada Transit Network Database
+// Total Verified Routes: 97 (City: 48, Suburban Metro: 49)
+// Sourced from Official Route Information Matrix
+
+var STOPS_DATABASE = window.STOPS_DATABASE = {
+  "krmarket": {
+    "id": "krmarket",
+    "name": "Kaleswara Rao Market (KR Market)",
+    "teName": "కళేశ్వరరావు మార్కెట్",
+    "lat": 16.5145,
+    "lng": 80.6092,
+    "isMajorHub": true
+  },
+  "railwaystn": {
+    "id": "railwaystn",
+    "name": "Vijayawada Railway Station",
+    "teName": "విజయవాడ రైల్వే స్టేషన్",
+    "lat": 16.5182,
+    "lng": 80.6235,
+    "isMajorHub": true
+  },
+  "pnbs": {
+    "id": "pnbs",
+    "name": "PNBS Central Bus Station",
+    "teName": "పండిట్ నెహ్రూ బస్ స్టేషన్ (పీఎన్‌బీఎస్)",
+    "lat": 16.5075,
+    "lng": 80.62,
+    "isMajorHub": true
+  },
+  "panja": {
+    "id": "panja",
+    "name": "Panja Center (One Town)",
+    "teName": "పంజా సెంటర్",
+    "lat": 16.516,
+    "lng": 80.612
+  },
+  "kabela": {
+    "id": "kabela",
+    "name": "Kabela Center",
+    "teName": "కబేళా సెంటర్",
+    "lat": 16.534,
+    "lng": 80.608
+  },
+  "milkproject": {
+    "id": "milkproject",
+    "name": "Milk Project (Chittinagar)",
+    "teName": "మిల్క్ ప్రాజెక్ట్ (చిట్టినగర్)",
+    "lat": 16.526,
+    "lng": 80.603,
+    "isMajorHub": true
+  },
+  "hbcolony": {
+    "id": "hbcolony",
+    "name": "HB Colony (Bhavanipuram)",
+    "teName": "హెచ్.బి. కాలనీ",
+    "lat": 16.528,
+    "lng": 80.595
+  },
+  "bhavanipuram": {
+    "id": "bhavanipuram",
+    "name": "Bhavanipuram Center",
+    "teName": "భవానిపురం",
+    "lat": 16.533,
+    "lng": 80.592
+  },
+  "gollapudi": {
+    "id": "gollapudi",
+    "name": "Gollapudi One Center",
+    "teName": "గొల్లపూడి వన్ సెంటర్",
+    "lat": 16.545,
+    "lng": 80.59,
+    "isMajorHub": true
+  },
+  "wholesalemarket": {
+    "id": "wholesalemarket",
+    "name": "Wholesale Market (Gollapudi)",
+    "teName": "హోల్‌సేల్ మార్కెట్ (గొల్లపూడి)",
+    "lat": 16.54,
+    "lng": 80.585
+  },
+  "wagonworkshop": {
+    "id": "wagonworkshop",
+    "name": "Wagon Workshop Colony (Raynapadu)",
+    "teName": "వ్యాగన్ వర్క్‌షాప్ కాలనీ",
+    "lat": 16.545,
+    "lng": 80.56
+  },
+  "kondapalli": {
+    "id": "kondapalli",
+    "name": "Kondapalli Station / Fort",
+    "teName": "కొండపల్లి",
+    "lat": 16.618,
+    "lng": 80.54,
+    "isMajorHub": true
+  },
+  "ibrahimpatnam": {
+    "id": "ibrahimpatnam",
+    "name": "Ibrahimpatnam Ring / Ferry",
+    "teName": "ఇబ్రహీంపట్నం రింగ్",
+    "lat": 16.588,
+    "lng": 80.528,
+    "isMajorHub": true
+  },
+  "kanchikacherla": {
+    "id": "kanchikacherla",
+    "name": "Kanchikacherla RTC Stand",
+    "teName": "కంచికచర్ల",
+    "lat": 16.68,
+    "lng": 80.4,
+    "isMajorHub": true
+  },
+  "veerulapadu": {
+    "id": "veerulapadu",
+    "name": "Veerulapadu",
+    "teName": "వీరులపాడు",
+    "lat": 16.71,
+    "lng": 80.37
+  },
+  "moghuluru": {
+    "id": "moghuluru",
+    "name": "Moghuluru",
+    "teName": "మొగులూరు",
+    "lat": 16.69,
+    "lng": 80.38
+  },
+  "jamalapuram": {
+    "id": "jamalapuram",
+    "name": "Jamalapuram Temple",
+    "teName": "జమలాపురం",
+    "lat": 16.82,
+    "lng": 80.34
+  },
+  "benzcircle": {
+    "id": "benzcircle",
+    "name": "Benz Circle (MG Road)",
+    "teName": "బెంజ్ సర్కిల్",
+    "lat": 16.5008,
+    "lng": 80.6512,
+    "isMajorHub": true
+  },
+  "gurunanak": {
+    "id": "gurunanak",
+    "name": "Gurunanak Colony",
+    "teName": "గురునానక్ కాలనీ",
+    "lat": 16.504,
+    "lng": 80.661
+  },
+  "patamata": {
+    "id": "patamata",
+    "name": "Patamata Center",
+    "teName": "పటమట",
+    "lat": 16.498,
+    "lng": 80.659
+  },
+  "autonagar": {
+    "id": "autonagar",
+    "name": "Auto Nagar Gate / Terminal",
+    "teName": "ఆటోనగర్ గేట్",
+    "lat": 16.495,
+    "lng": 80.665,
+    "isMajorHub": true
+  },
+  "kanuru": {
+    "id": "kanuru",
+    "name": "Kanuru Vrindavan Colony",
+    "teName": "కానూరు",
+    "lat": 16.488,
+    "lng": 80.685,
+    "isMajorHub": true
+  },
+  "thadigadapa": {
+    "id": "thadigadapa",
+    "name": "Thadigadapa",
+    "teName": "తాడిగడప",
+    "lat": 16.485,
+    "lng": 80.695
+  },
+  "poranki": {
+    "id": "poranki",
+    "name": "Poranki Junction",
+    "teName": "పోరంకి సెంటర్",
+    "lat": 16.4815,
+    "lng": 80.706,
+    "isMajorHub": true
+  },
+  "penamaluru": {
+    "id": "penamaluru",
+    "name": "Penamaluru Center",
+    "teName": "పెనమలూరు",
+    "lat": 16.474,
+    "lng": 80.723,
+    "isMajorHub": true
+  },
+  "ganguru": {
+    "id": "ganguru",
+    "name": "Ganguru VR Siddhartha College",
+    "teName": "గంగూరు",
+    "lat": 16.462,
+    "lng": 80.742
+  },
+  "vanukuru": {
+    "id": "vanukuru",
+    "name": "Vanukuru / Madduru",
+    "teName": "వానుకూరు / మద్దూరు",
+    "lat": 16.448,
+    "lng": 80.758
+  },
+  "kankipadu": {
+    "id": "kankipadu",
+    "name": "Kankipadu Bus Stand",
+    "teName": "కంకిపాడు",
+    "lat": 16.425,
+    "lng": 80.778,
+    "isMajorHub": true
+  },
+  "vuyyuru": {
+    "id": "vuyyuru",
+    "name": "Vuyyuru RTC Depot",
+    "teName": "వుయ్యూరు",
+    "lat": 16.368,
+    "lng": 80.846,
+    "isMajorHub": true
+  },
+  "pamarru": {
+    "id": "pamarru",
+    "name": "Pamarru Bus Stand",
+    "teName": "పామర్రు",
+    "lat": 16.331,
+    "lng": 80.957,
+    "isMajorHub": true
+  },
+  "machavaram": {
+    "id": "machavaram",
+    "name": "Machavaram Down",
+    "teName": "మాచవరం డౌన్",
+    "lat": 16.518,
+    "lng": 80.643
+  },
+  "gunadala": {
+    "id": "gunadala",
+    "name": "Gunadala Center",
+    "teName": "గుణదల సెంటర్",
+    "lat": 16.526,
+    "lng": 80.658
+  },
+  "ramavarappadu": {
+    "id": "ramavarappadu",
+    "name": "Ramavarappadu Ring (NH-16)",
+    "teName": "రామవరప్పాడు రింగ్",
+    "lat": 16.5332,
+    "lng": 80.6721,
+    "isMajorHub": true
+  },
+  "prasadampadu": {
+    "id": "prasadampadu",
+    "name": "Prasadampadu",
+    "teName": "ప్రసాదంపాడు",
+    "lat": 16.5315,
+    "lng": 80.695
+  },
+  "enikepadu": {
+    "id": "enikepadu",
+    "name": "Enikepadu Junction",
+    "teName": "ఏనికపాడు",
+    "lat": 16.5305,
+    "lng": 80.71
+  },
+  "nidamanuru": {
+    "id": "nidamanuru",
+    "name": "Nidamanuru",
+    "teName": "నిడమానూరు",
+    "lat": 16.53,
+    "lng": 80.728
+  },
+  "uppuluru": {
+    "id": "uppuluru",
+    "name": "Uppuluru",
+    "teName": "ఉప్పులూరు",
+    "lat": 16.54,
+    "lng": 80.75
+  },
+  "gannavaram": {
+    "id": "gannavaram",
+    "name": "Gannavaram (Airport / Stand)",
+    "teName": "గన్నవరం",
+    "lat": 16.531,
+    "lng": 80.796,
+    "isMajorHub": true
+  },
+  "musthabadh": {
+    "id": "musthabadh",
+    "name": "Musthabadh",
+    "teName": "ముస్తాబాద్",
+    "lat": 16.585,
+    "lng": 80.755
+  },
+  "peddaoutpalli": {
+    "id": "peddaoutpalli",
+    "name": "Pedda Outpalli",
+    "teName": "పెద్ద అవుట్‌పల్లి",
+    "lat": 16.575,
+    "lng": 80.84
+  },
+  "telaprolu": {
+    "id": "telaprolu",
+    "name": "Telaprolu",
+    "teName": "తేలప్రోలు",
+    "lat": 16.602,
+    "lng": 80.88
+  },
+  "hanumanjunction": {
+    "id": "hanumanjunction",
+    "name": "Hanuman Junction Bus Stand",
+    "teName": "హనుమాన్ జంక్షన్",
+    "lat": 16.635,
+    "lng": 80.965,
+    "isMajorHub": true
+  },
+  "mangalagiri": {
+    "id": "mangalagiri",
+    "name": "Mangalagiri Bus Stand",
+    "teName": "మంగళగిరి బస్ స్టాండ్",
+    "lat": 16.432,
+    "lng": 80.558,
+    "isMajorHub": true
+  },
+  "nrihospital": {
+    "id": "nrihospital",
+    "name": "NRI General Hospital, Mangalagiri",
+    "teName": "ఎన్.ఆర్.ఐ హాస్పిటల్ (మంగళగిరి)",
+    "lat": 16.41,
+    "lng": 80.555
+  },
+  "chinnakakani": {
+    "id": "chinnakakani",
+    "name": "Chinna Kakani Junction",
+    "teName": "చిన్న కాకాని",
+    "lat": 16.402,
+    "lng": 80.552
+  },
+  "nutakki": {
+    "id": "nutakki",
+    "name": "Nutakki Center",
+    "teName": "నూతక్కి",
+    "lat": 16.395,
+    "lng": 80.612
+  },
+  "chiravuru": {
+    "id": "chiravuru",
+    "name": "Chiravuru",
+    "teName": "చిరవూరు",
+    "lat": 16.442,
+    "lng": 80.595
+  },
+  "madhuranagar": {
+    "id": "madhuranagar",
+    "name": "Madhura Nagar",
+    "teName": "మధురా నగర్",
+    "lat": 16.525,
+    "lng": 80.635
+  },
+  "satyanarayanapuram": {
+    "id": "satyanarayanapuram",
+    "name": "Satyanarayanapuram Colony",
+    "teName": "సత్యనారాయణపురం",
+    "lat": 16.524,
+    "lng": 80.63
+  },
+  "devinagar": {
+    "id": "devinagar",
+    "name": "Devi Nagar",
+    "teName": "దేవీ నగర్",
+    "lat": 16.53,
+    "lng": 80.64
+  },
+  "govpress": {
+    "id": "govpress",
+    "name": "Government Press (Mutyalampadu)",
+    "teName": "గవర్నమెంట్ ప్రెస్",
+    "lat": 16.529,
+    "lng": 80.638
+  },
+  "vombaycolony": {
+    "id": "vombaycolony",
+    "name": "Vombay Colony (Ajit Singh Nagar)",
+    "teName": "వాంబే కాలనీ",
+    "lat": 16.549,
+    "lng": 80.655
+  },
+  "nunna": {
+    "id": "nunna",
+    "name": "Nunna Mango Market",
+    "teName": "నున్న",
+    "lat": 16.582,
+    "lng": 80.685,
+    "isMajorHub": true
+  },
+  "kavuluru": {
+    "id": "kavuluru",
+    "name": "Kavuluru",
+    "teName": "కావులూరు",
+    "lat": 16.62,
+    "lng": 80.64
+  },
+  "agirapalli": {
+    "id": "agirapalli",
+    "name": "Agirapalli Center",
+    "teName": "అగిరిపల్లి",
+    "lat": 16.69,
+    "lng": 80.79
+  },
+  "nuzividu": {
+    "id": "nuzividu",
+    "name": "Nuzividu Bus Stand",
+    "teName": "నూజివీడు",
+    "lat": 16.785,
+    "lng": 80.845,
+    "isMajorHub": true
+  },
+  "mailavaram": {
+    "id": "mailavaram",
+    "name": "Mailavaram Bus Stand",
+    "teName": "మైలవరం",
+    "lat": 16.758,
+    "lng": 80.64,
+    "isMajorHub": true
+  },
+  "thotlavalluru": {
+    "id": "thotlavalluru",
+    "name": "Thotlavalluru Center",
+    "teName": "తోట్లవల్లూరు",
+    "lat": 16.33,
+    "lng": 80.85
+  },
+  "yanamalakuduru": {
+    "id": "yanamalakuduru",
+    "name": "Yanamalakuduru",
+    "teName": "యనమలకుదురు",
+    "lat": 16.485,
+    "lng": 80.66
+  },
+  "peddapulipaka": {
+    "id": "peddapulipaka",
+    "name": "Pedda Puli Paka",
+    "teName": "పెద్ద పులిపాక",
+    "lat": 16.48,
+    "lng": 80.645
+  },
+  "chodavaram": {
+    "id": "chodavaram",
+    "name": "Chodavaram",
+    "teName": "చోడవరం",
+    "lat": 16.46,
+    "lng": 80.72
+  },
+  "newrrpet": {
+    "id": "newrrpet",
+    "name": "New Raja Rajeswari Pet",
+    "teName": "న్యూ రాజరాజేశ్వరి పేట",
+    "lat": 16.528,
+    "lng": 80.625
+  },
+  "fourmen": {
+    "id": "fourmen",
+    "name": "Fourmen Bungalow",
+    "teName": "ఫోర్‌మెన్ బంగ్లా",
+    "lat": 16.515,
+    "lng": 80.63
+  },
+  "kesaraneni": {
+    "id": "kesaraneni",
+    "name": "Kesaraneni Vari Palem",
+    "teName": "కేసరనేని వారి పాలెం",
+    "lat": 16.468,
+    "lng": 80.735
+  },
+  "nsbnagar": {
+    "id": "nsbnagar",
+    "name": "NSB Nagar",
+    "teName": "ఎన్.ఎస్.బి. నగర్",
+    "lat": 16.51,
+    "lng": 80.68
+  },
+  "managalapuram": {
+    "id": "managalapuram",
+    "name": "Managalapuram",
+    "teName": "మంగళాపురం",
+    "lat": 16.56,
+    "lng": 80.67
+  },
+  "kundavari": {
+    "id": "kundavari",
+    "name": "Kunda Vari Kandrika",
+    "teName": "కుండ వారి కండ్రిక",
+    "lat": 16.57,
+    "lng": 80.66
+  },
+  "elaprolu": {
+    "id": "elaprolu",
+    "name": "Elaprolu",
+    "teName": "ఎలాప్రోలు",
+    "lat": 16.59,
+    "lng": 80.59
+  },
+  "kgpadu": {
+    "id": "kgpadu",
+    "name": "K G Padu",
+    "teName": "కే.జి. పాడు",
+    "lat": 16.565,
+    "lng": 80.79
+  },
+  "shabad": {
+    "id": "shabad",
+    "name": "Shabad",
+    "teName": "షాబాద్",
+    "lat": 16.44,
+    "lng": 80.72
+  },
+  "orugalla": {
+    "id": "orugalla",
+    "name": "Orugalla",
+    "teName": "ఓరుగళ్ల",
+    "lat": 16.595,
+    "lng": 80.82
+  },
+  "podduturu": {
+    "id": "podduturu",
+    "name": "Podduturu",
+    "teName": "పొద్దుటూరు",
+    "lat": 16.455,
+    "lng": 80.795
+  },
+  "konduru": {
+    "id": "konduru",
+    "name": "Konduru",
+    "teName": "కొండూరు",
+    "lat": 16.67,
+    "lng": 80.58
+  },
+  "tenneru": {
+    "id": "tenneru",
+    "name": "Tenneru",
+    "teName": "తెన్నేరు",
+    "lat": 16.445,
+    "lng": 80.81
+  },
+  "vallurupalem": {
+    "id": "vallurupalem",
+    "name": "Valluru Palem",
+    "teName": "వల్లూరు పాలెం",
+    "lat": 16.345,
+    "lng": 80.83
+  },
+  "royyuru": {
+    "id": "royyuru",
+    "name": "Royyuru",
+    "teName": "రొయ్యూరు",
+    "lat": 16.35,
+    "lng": 80.82
+  },
+  "kollvenu": {
+    "id": "kollvenu",
+    "name": "Kollvenu",
+    "teName": "కొల్లవేణు",
+    "lat": 16.46,
+    "lng": 80.77
+  },
+  "chikkavaram": {
+    "id": "chikkavaram",
+    "name": "Chikkavaram",
+    "teName": "చిక్కవరం",
+    "lat": 16.56,
+    "lng": 80.81
+  },
+  "ppatnam": {
+    "id": "ppatnam",
+    "name": "P. Patnam",
+    "teName": "పి. పట్నం",
+    "lat": 16.55,
+    "lng": 80.78
+  },
+  "sgudem": {
+    "id": "sgudem",
+    "name": "S. Gudem",
+    "teName": "ఎస్. గూడెం",
+    "lat": 16.545,
+    "lng": 80.76
+  },
+  "mudirajupalem": {
+    "id": "mudirajupalem",
+    "name": "Mudiraju Palem",
+    "teName": "ముదిరాజు పాలెం",
+    "lat": 16.545,
+    "lng": 80.82
+  },
+  "manikonda": {
+    "id": "manikonda",
+    "name": "Manikonda",
+    "teName": "మణికొండ",
+    "lat": 16.51,
+    "lng": 80.86
+  },
+  "kanasanepalli": {
+    "id": "kanasanepalli",
+    "name": "Kanasanepalli",
+    "teName": "కనసనేపల్లి",
+    "lat": 16.61,
+    "lng": 80.72
+  },
+  "vemanda": {
+    "id": "vemanda",
+    "name": "Vemanda",
+    "teName": "వేమండ",
+    "lat": 16.58,
+    "lng": 80.86
+  },
+  "peddaogirala": {
+    "id": "peddaogirala",
+    "name": "Pedda Ogirala",
+    "teName": "పెద్ద ఓగిరాల",
+    "lat": 16.39,
+    "lng": 80.82
+  }
+};
+
+var ROUTES_DATABASE = window.ROUTES_DATABASE = {
+  "1": {
+    "code": "1",
+    "name": "IBRAHIMPATNAM TO PORANKI",
+    "rawName": "Ibrahimpatnam TO Poranki",
+    "teName": "ఇబ్రహీంపట్నం రింగ్ నుండి పోరంకి సెంటర్",
+    "category": "City",
+    "origin": "Ibrahimpatnam",
+    "destination": "Poranki",
+    "via": "",
+    "fare": 45,
+    "distanceKm": 29.6,
+    "durationMins": 65,
+    "type": "Metro Express",
+    "frequency": "Every 15-20 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "ibrahimpatnam",
+      "gollapudi",
+      "bhavanipuram",
+      "krmarket",
+      "railwaystn",
+      "benzcircle",
+      "autonagar",
+      "poranki"
+    ],
+    "color": "#C8232C"
+  },
+  "1G": {
+    "code": "1G",
+    "name": "GOLLAPUDI TO KANKIPADU",
+    "rawName": "Gollapudi TO Kankipadu",
+    "teName": "గొల్లపూడి వన్ సెంటర్ నుండి కంకిపాడు",
+    "category": "City",
+    "origin": "Gollapudi",
+    "destination": "Kankipadu",
+    "via": "",
+    "fare": 45,
+    "distanceKm": 31.5,
+    "durationMins": 69,
+    "type": "Metro Express",
+    "frequency": "Every 15-20 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "gollapudi",
+      "bhavanipuram",
+      "krmarket",
+      "railwaystn",
+      "benzcircle",
+      "autonagar",
+      "kankipadu"
+    ],
+    "color": "#C8232C"
+  },
+  "2": {
+    "code": "2",
+    "name": "KALESWARA RAO MARKET TO RAMAVARAPPADU",
+    "rawName": "Kaleswara Rao Market TO Ramavarappadu",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి రామవరప్పాడు రింగ్",
+    "category": "City",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Ramavarappadu",
+    "via": "",
+    "fare": 20,
+    "distanceKm": 8.9,
+    "durationMins": 19,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "machavaram",
+      "gunadala",
+      "ramavarappadu"
+    ],
+    "color": "#C8232C"
+  },
+  "2K": {
+    "code": "2K",
+    "name": "KALESWARA RAO MARKET TO KANURU",
+    "rawName": "Kaleswara Rao Market TO Kanuru",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి కానూరు",
+    "category": "City",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Kanuru",
+    "via": "",
+    "fare": 25,
+    "distanceKm": 10.8,
+    "durationMins": 23,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "benzcircle",
+      "autonagar",
+      "kanuru"
+    ],
+    "color": "#C8232C"
+  },
+  "3": {
+    "code": "3",
+    "name": "KABELA TO GOVERNMENT PRESS",
+    "rawName": "Kabela TO Government Press",
+    "teName": "కబేళా సెంటర్ నుండి గవర్నమెంట్ ప్రెస్",
+    "category": "City",
+    "origin": "Kabela",
+    "destination": "Government Press",
+    "via": "",
+    "fare": 15,
+    "distanceKm": 4.0,
+    "durationMins": 15,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "kabela",
+      "govpress"
+    ],
+    "color": "#C8232C"
+  },
+  "3D": {
+    "code": "3D",
+    "name": "MILK PROJECT TO DEVI NAGAR",
+    "rawName": "Milk Project TO Devi Nagar",
+    "teName": "మిల్క్ ప్రాజెక్ట్ (చిట్టినగర్) నుండి దేవీ నగర్",
+    "category": "City",
+    "origin": "Milk Project",
+    "destination": "Devi Nagar",
+    "via": "",
+    "fare": 15,
+    "distanceKm": 5.0,
+    "durationMins": 15,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "milkproject",
+      "devinagar"
+    ],
+    "color": "#C8232C"
+  },
+  "5": {
+    "code": "5",
+    "name": "KABELA TO AUTONAGAR",
+    "rawName": "Kabela TO Autonagar",
+    "teName": "కబేళా సెంటర్ నుండి ఆటోనగర్ గేట్",
+    "category": "City",
+    "origin": "Kabela",
+    "destination": "Autonagar",
+    "via": "",
+    "fare": 20,
+    "distanceKm": 9.4,
+    "durationMins": 20,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "kabela",
+      "autonagar"
+    ],
+    "color": "#C8232C"
+  },
+  "5G": {
+    "code": "5G",
+    "name": "KALESWARA RAO MARKET TO AUTONAGAR, VIA GURUNANAK COLONY",
+    "rawName": "Kaleswara Rao Market TO Autonagar, via Gurunanak Colony",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి ఆటోనగర్ గేట్ (ద్వారా Gurunanak Colony)",
+    "category": "City",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Autonagar",
+    "via": "Gurunanak Colony",
+    "fare": 20,
+    "distanceKm": 8.6,
+    "durationMins": 18,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "benzcircle",
+      "gurunanak",
+      "autonagar"
+    ],
+    "color": "#C8232C"
+  },
+  "5SG": {
+    "code": "5SG",
+    "name": "RAILWAY STATION TO AUTONAGAR, VIA GURUNANAK COLONY",
+    "rawName": "Railway Station TO Autonagar, via Gurunanak Colony",
+    "teName": "విజయవాడ రైల్వే స్టేషన్ నుండి ఆటోనగర్ గేట్ (ద్వారా Gurunanak Colony)",
+    "category": "City",
+    "origin": "Railway Station",
+    "destination": "Autonagar",
+    "via": "Gurunanak Colony",
+    "fare": 20,
+    "distanceKm": 7.1,
+    "durationMins": 15,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "railwaystn",
+      "benzcircle",
+      "gurunanak",
+      "autonagar"
+    ],
+    "color": "#C8232C"
+  },
+  "7A": {
+    "code": "7A",
+    "name": "KALESWARA RAO MARKET TO PEDDA PULI PAKA",
+    "rawName": "Kaleswara Rao Market TO Pedda Puli Paka",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి పెద్ద పులిపాక",
+    "category": "City",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Pedda Puli Paka",
+    "via": "",
+    "fare": 20,
+    "distanceKm": 6.8,
+    "durationMins": 15,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "peddapulipaka"
+    ],
+    "color": "#C8232C"
+  },
+  "7R": {
+    "code": "7R",
+    "name": "MILK PROJECT TO YANAMALAKUDURU",
+    "rawName": "Milk Project TO Yanamalakuduru",
+    "teName": "మిల్క్ ప్రాజెక్ట్ (చిట్టినగర్) నుండి యనమలకుదురు",
+    "category": "City",
+    "origin": "Milk Project",
+    "destination": "Yanamalakuduru",
+    "via": "",
+    "fare": 20,
+    "distanceKm": 9.5,
+    "durationMins": 20,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "milkproject",
+      "yanamalakuduru"
+    ],
+    "color": "#C8232C"
+  },
+  "10": {
+    "code": "10",
+    "name": "RAILWAY STATION TO PENAMALURU",
+    "rawName": "Railway Station TO Penamaluru",
+    "teName": "విజయవాడ రైల్వే స్టేషన్ నుండి పెనమలూరు",
+    "category": "City",
+    "origin": "Railway Station",
+    "destination": "Penamaluru",
+    "via": "",
+    "fare": 25,
+    "distanceKm": 14.7,
+    "durationMins": 32,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "railwaystn",
+      "benzcircle",
+      "autonagar",
+      "kanuru",
+      "poranki",
+      "penamaluru"
+    ],
+    "color": "#C8232C"
+  },
+  "10C": {
+    "code": "10C",
+    "name": "RAILWAY STATION TO CHODAVARAM",
+    "rawName": "Railway Station TO Chodavaram",
+    "teName": "విజయవాడ రైల్వే స్టేషన్ నుండి చోడవరం",
+    "category": "City",
+    "origin": "Railway Station",
+    "destination": "Chodavaram",
+    "via": "",
+    "fare": 30,
+    "distanceKm": 15.2,
+    "durationMins": 33,
+    "type": "City Sheetal AC",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "railwaystn",
+      "chodavaram"
+    ],
+    "color": "#0284c7"
+  },
+  "11": {
+    "code": "11",
+    "name": "MILK PROJECT TO AUTONAGAR, VIA ELURU ROAD",
+    "rawName": "Milk Project TO Autonagar, via Eluru Road",
+    "teName": "మిల్క్ ప్రాజెక్ట్ (చిట్టినగర్) నుండి ఆటోనగర్ గేట్ (ద్వారా Eluru Road)",
+    "category": "City",
+    "origin": "Milk Project",
+    "destination": "Autonagar",
+    "via": "Eluru Road",
+    "fare": 30,
+    "distanceKm": 15.2,
+    "durationMins": 33,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "milkproject",
+      "railwaystn",
+      "gunadala",
+      "ramavarappadu",
+      "autonagar"
+    ],
+    "color": "#C8232C"
+  },
+  "11H": {
+    "code": "11H",
+    "name": "KABELA TO AUTONAGAR, VIA ELURU ROAD",
+    "rawName": "Kabela TO Autonagar, via Eluru Road",
+    "teName": "కబేళా సెంటర్ నుండి ఆటోనగర్ గేట్ (ద్వారా Eluru Road)",
+    "category": "City",
+    "origin": "Kabela",
+    "destination": "Autonagar",
+    "via": "Eluru Road",
+    "fare": 30,
+    "distanceKm": 15.2,
+    "durationMins": 33,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "kabela",
+      "railwaystn",
+      "gunadala",
+      "ramavarappadu",
+      "autonagar"
+    ],
+    "color": "#C8232C"
+  },
+  "14S": {
+    "code": "14S",
+    "name": "WAGON WORKSHOP COLONY TO MADHURA NAGAR",
+    "rawName": "Wagon Workshop Colony TO Madhura Nagar",
+    "teName": "వ్యాగన్ వర్క్‌షాప్ కాలనీ నుండి మధురా నగర్",
+    "category": "City",
+    "origin": "Wagon Workshop Colony",
+    "destination": "Madhura Nagar",
+    "via": "",
+    "fare": 25,
+    "distanceKm": 10.4,
+    "durationMins": 22,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "wagonworkshop",
+      "madhuranagar"
+    ],
+    "color": "#C8232C"
+  },
+  "14E": {
+    "code": "14E",
+    "name": "ELAPROLU TO SATYANARAYANAPURAM COLONY",
+    "rawName": "Elaprolu TO Satyanarayanapuram Colony",
+    "teName": "ఎలాప్రోలు నుండి సత్యనారాయణపురం",
+    "category": "City",
+    "origin": "Elaprolu",
+    "destination": "Satyanarayanapuram Colony",
+    "via": "",
+    "fare": 25,
+    "distanceKm": 10.6,
+    "durationMins": 23,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "elaprolu",
+      "satyanarayanapuram"
+    ],
+    "color": "#C8232C"
+  },
+  "16M": {
+    "code": "16M",
+    "name": "VOMBAY COLONY TO GUNADALA",
+    "rawName": "Vombay Colony TO Gunadala",
+    "teName": "వాంబే కాలనీ నుండి గుణదల సెంటర్",
+    "category": "City",
+    "origin": "Vombay Colony",
+    "destination": "Gunadala",
+    "via": "",
+    "fare": 15,
+    "distanceKm": 4.0,
+    "durationMins": 15,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "vombaycolony",
+      "gunadala"
+    ],
+    "color": "#C8232C"
+  },
+  "16R": {
+    "code": "16R",
+    "name": "KALESWARA RAO MARKET TO NEW RAJA RAJESWARI PET",
+    "rawName": "Kaleswara Rao Market TO New Raja Rajeswari Pet",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి న్యూ రాజరాజేశ్వరి పేట",
+    "category": "City",
+    "origin": "Kaleswara Rao Market",
+    "destination": "New Raja Rajeswari Pet",
+    "via": "",
+    "fare": 15,
+    "distanceKm": 4.0,
+    "durationMins": 15,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "newrrpet"
+    ],
+    "color": "#C8232C"
+  },
+  "20": {
+    "code": "20",
+    "name": "MADHURA NAGAR TO MANGALAGIRI",
+    "rawName": "Madhura Nagar TO Mangalagiri",
+    "teName": "మధురా నగర్ నుండి మంగళగిరి బస్ స్టాండ్",
+    "category": "City",
+    "origin": "Madhura Nagar",
+    "destination": "Mangalagiri",
+    "via": "",
+    "fare": 30,
+    "distanceKm": 16.5,
+    "durationMins": 36,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "madhuranagar",
+      "mangalagiri"
+    ],
+    "color": "#C8232C"
+  },
+  "23": {
+    "code": "23",
+    "name": "KALESWARA RAO MARKET TO PENAMALURU",
+    "rawName": "Kaleswara Rao Market TO Penamaluru",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి పెనమలూరు",
+    "category": "City",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Penamaluru",
+    "via": "",
+    "fare": 30,
+    "distanceKm": 16.3,
+    "durationMins": 35,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "benzcircle",
+      "autonagar",
+      "kanuru",
+      "poranki",
+      "penamaluru"
+    ],
+    "color": "#C8232C"
+  },
+  "23A": {
+    "code": "23A",
+    "name": "FOURMEN BUNGALOW TO GANGURU",
+    "rawName": "Fourmen Bungalow TO Ganguru",
+    "teName": "ఫోర్‌మెన్ బంగ్లా నుండి గంగూరు",
+    "category": "City",
+    "origin": "Fourmen Bungalow",
+    "destination": "Ganguru",
+    "via": "",
+    "fare": 30,
+    "distanceKm": 16.6,
+    "durationMins": 36,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "fourmen",
+      "ganguru"
+    ],
+    "color": "#C8232C"
+  },
+  "23K": {
+    "code": "23K",
+    "name": "KALESWARA RAO MARKET TO KESARANENI VARI PALEM",
+    "rawName": "Kaleswara Rao Market TO Kesaraneni Vari Palem",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి కేసరనేని వారి పాలెం",
+    "category": "City",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Kesaraneni Vari Palem",
+    "via": "",
+    "fare": 30,
+    "distanceKm": 18.0,
+    "durationMins": 39,
+    "type": "City Ordinary",
+    "frequency": "Every 15-20 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "kesaraneni"
+    ],
+    "color": "#C8232C"
+  },
+  "26H": {
+    "code": "26H",
+    "name": "HB COLONY TO AUTONAGAR",
+    "rawName": "HB Colony TO Autonagar",
+    "teName": "హెచ్.బి. కాలనీ నుండి ఆటోనగర్ గేట్",
+    "category": "City",
+    "origin": "HB Colony",
+    "destination": "Autonagar",
+    "via": "",
+    "fare": 30,
+    "distanceKm": 15.6,
+    "durationMins": 34,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "hbcolony",
+      "gollapudi",
+      "bhavanipuram",
+      "krmarket",
+      "benzcircle",
+      "autonagar"
+    ],
+    "color": "#C8232C"
+  },
+  "28B": {
+    "code": "28B",
+    "name": "PANJA TO PANJA, VIA BUNDAR ROAD",
+    "rawName": "Panja TO Panja, via Bundar Road",
+    "teName": "పంజా సెంటర్ నుండి పంజా సెంటర్ (ద్వారా Bundar Road)",
+    "category": "City",
+    "origin": "Panja",
+    "destination": "Panja",
+    "via": "Bundar Road",
+    "fare": 20,
+    "distanceKm": 7.6,
+    "durationMins": 16,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "panja",
+      "benzcircle",
+      "autonagar"
+    ],
+    "color": "#C8232C"
+  },
+  "28E": {
+    "code": "28E",
+    "name": "PANJA TO PANJA, VIA ELURU ROAD",
+    "rawName": "Panja TO Panja, via Eluru Road",
+    "teName": "పంజా సెంటర్ నుండి పంజా సెంటర్ (ద్వారా Eluru Road)",
+    "category": "City",
+    "origin": "Panja",
+    "destination": "Panja",
+    "via": "Eluru Road",
+    "fare": 20,
+    "distanceKm": 8.5,
+    "durationMins": 18,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "panja",
+      "railwaystn",
+      "gunadala",
+      "ramavarappadu"
+    ],
+    "color": "#C8232C"
+  },
+  "29": {
+    "code": "29",
+    "name": "KALESWARA RAO MARKET TO AUTONAGAR",
+    "rawName": "Kaleswara Rao Market TO Autonagar",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి ఆటోనగర్ గేట్",
+    "category": "City",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Autonagar",
+    "via": "",
+    "fare": 20,
+    "distanceKm": 7.9,
+    "durationMins": 17,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "benzcircle",
+      "patamata",
+      "autonagar"
+    ],
+    "color": "#C8232C"
+  },
+  "31": {
+    "code": "31",
+    "name": "MILK PROJECT TO AUTONAGAR",
+    "rawName": "Milk Project TO Autonagar",
+    "teName": "మిల్క్ ప్రాజెక్ట్ (చిట్టినగర్) నుండి ఆటోనగర్ గేట్",
+    "category": "City",
+    "origin": "Milk Project",
+    "destination": "Autonagar",
+    "via": "",
+    "fare": 20,
+    "distanceKm": 9.4,
+    "durationMins": 20,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "milkproject",
+      "autonagar"
+    ],
+    "color": "#C8232C"
+  },
+  "31A": {
+    "code": "31A",
+    "name": "MILK PROJECT TO THADIGADAPA",
+    "rawName": "Milk Project TO Thadigadapa",
+    "teName": "మిల్క్ ప్రాజెక్ట్ (చిట్టినగర్) నుండి తాడిగడప",
+    "category": "City",
+    "origin": "Milk Project",
+    "destination": "Thadigadapa",
+    "via": "",
+    "fare": 25,
+    "distanceKm": 13.5,
+    "durationMins": 29,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "milkproject",
+      "thadigadapa"
+    ],
+    "color": "#C8232C"
+  },
+  "31H": {
+    "code": "31H",
+    "name": "HB COLONY TO AUTONAGAR",
+    "rawName": "HB Colony TO Autonagar",
+    "teName": "హెచ్.బి. కాలనీ నుండి ఆటోనగర్ గేట్",
+    "category": "City",
+    "origin": "HB Colony",
+    "destination": "Autonagar",
+    "via": "",
+    "fare": 30,
+    "distanceKm": 15.6,
+    "durationMins": 34,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "hbcolony",
+      "gollapudi",
+      "bhavanipuram",
+      "krmarket",
+      "benzcircle",
+      "autonagar"
+    ],
+    "color": "#C8232C"
+  },
+  "41V": {
+    "code": "41V",
+    "name": "VOMBAY COLONY TO AUTONAGAR",
+    "rawName": "Vombay Colony TO Autonagar",
+    "teName": "వాంబే కాలనీ నుండి ఆటోనగర్ గేట్",
+    "category": "City",
+    "origin": "Vombay Colony",
+    "destination": "Autonagar",
+    "via": "",
+    "fare": 20,
+    "distanceKm": 7.6,
+    "durationMins": 16,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "vombaycolony",
+      "autonagar"
+    ],
+    "color": "#C8232C"
+  },
+  "47H": {
+    "code": "47H",
+    "name": "RAILWAY STATION TO CHINNA KAKANI",
+    "rawName": "Railway Station TO Chinna Kakani",
+    "teName": "విజయవాడ రైల్వే స్టేషన్ నుండి చిన్న కాకాని",
+    "category": "City",
+    "origin": "Railway Station",
+    "destination": "Chinna Kakani",
+    "via": "",
+    "fare": 30,
+    "distanceKm": 19.1,
+    "durationMins": 42,
+    "type": "City Ordinary",
+    "frequency": "Every 15-20 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "railwaystn",
+      "pnbs",
+      "mangalagiri",
+      "chinnakakani"
+    ],
+    "color": "#C8232C"
+  },
+  "47N": {
+    "code": "47N",
+    "name": "KALESWARA RAO MARKET TO NRI HOSPITAL, MANGALAGIRI",
+    "rawName": "Kaleswara Rao Market TO NRI Hospital, Mangalagiri",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి ఎన్.ఆర్.ఐ హాస్పిటల్ (మంగళగిరి)",
+    "category": "City",
+    "origin": "Kaleswara Rao Market",
+    "destination": "NRI Hospital, Mangalagiri",
+    "via": "",
+    "fare": 30,
+    "distanceKm": 18.2,
+    "durationMins": 40,
+    "type": "City Ordinary",
+    "frequency": "Every 15-20 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "pnbs",
+      "mangalagiri",
+      "nrihospital"
+    ],
+    "color": "#C8232C"
+  },
+  "47V": {
+    "code": "47V",
+    "name": "RAILWAY STATION TO MANGALAGIRI",
+    "rawName": "Railway Station TO Mangalagiri",
+    "teName": "విజయవాడ రైల్వే స్టేషన్ నుండి మంగళగిరి బస్ స్టాండ్",
+    "category": "City",
+    "origin": "Railway Station",
+    "destination": "Mangalagiri",
+    "via": "",
+    "fare": 25,
+    "distanceKm": 14.9,
+    "durationMins": 32,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "railwaystn",
+      "pnbs",
+      "mangalagiri"
+    ],
+    "color": "#C8232C"
+  },
+  "48K": {
+    "code": "48K",
+    "name": "NSB NAGAR TO AUTONAGAR",
+    "rawName": "NSB Nagar TO Autonagar",
+    "teName": "ఎన్.ఎస్.బి. నగర్ నుండి ఆటోనగర్ గేట్",
+    "category": "City",
+    "origin": "NSB Nagar",
+    "destination": "Autonagar",
+    "via": "",
+    "fare": 15,
+    "distanceKm": 4.0,
+    "durationMins": 15,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "nsbnagar",
+      "autonagar"
+    ],
+    "color": "#C8232C"
+  },
+  "48N": {
+    "code": "48N",
+    "name": "AUTONAGAR TO NUNNA",
+    "rawName": "Autonagar TO Nunna",
+    "teName": "ఆటోనగర్ గేట్ నుండి నున్న",
+    "category": "City",
+    "origin": "Autonagar",
+    "destination": "Nunna",
+    "via": "",
+    "fare": 25,
+    "distanceKm": 12.4,
+    "durationMins": 27,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "autonagar",
+      "nunna"
+    ],
+    "color": "#C8232C"
+  },
+  "48V": {
+    "code": "48V",
+    "name": "AUTONAGAR TO VOMBAY COLONY",
+    "rawName": "Autonagar TO Vombay Colony",
+    "teName": "ఆటోనగర్ గేట్ నుండి వాంబే కాలనీ",
+    "category": "City",
+    "origin": "Autonagar",
+    "destination": "Vombay Colony",
+    "via": "",
+    "fare": 20,
+    "distanceKm": 7.6,
+    "durationMins": 16,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "autonagar",
+      "vombaycolony"
+    ],
+    "color": "#C8232C"
+  },
+  "49": {
+    "code": "49",
+    "name": "KALESWARA RAO MARKET TO NUNNA",
+    "rawName": "Kaleswara Rao Market TO Nunna",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి నున్న",
+    "category": "City",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Nunna",
+    "via": "",
+    "fare": 25,
+    "distanceKm": 14.1,
+    "durationMins": 31,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "madhuranagar",
+      "vombaycolony",
+      "nunna"
+    ],
+    "color": "#C8232C"
+  },
+  "49M": {
+    "code": "49M",
+    "name": "KALESWARA RAO MARKET TO MANAGALAPURAM",
+    "rawName": "Kaleswara Rao Market TO Managalapuram",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి మంగళాపురం",
+    "category": "City",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Managalapuram",
+    "via": "",
+    "fare": 25,
+    "distanceKm": 10.2,
+    "durationMins": 22,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "managalapuram"
+    ],
+    "color": "#C8232C"
+  },
+  "49P": {
+    "code": "49P",
+    "name": "KALESWARA RAO MARKET TO KUNDA VARI KANDRIKA",
+    "rawName": "Kaleswara Rao Market TO Kunda Vari Kandrika",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి కుండ వారి కండ్రిక",
+    "category": "City",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Kunda Vari Kandrika",
+    "via": "",
+    "fare": 25,
+    "distanceKm": 10.2,
+    "durationMins": 22,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "kundavari"
+    ],
+    "color": "#C8232C"
+  },
+  "54": {
+    "code": "54",
+    "name": "RAILWAY STATION TO AUTONAGAR",
+    "rawName": "Railway Station TO Autonagar",
+    "teName": "విజయవాడ రైల్వే స్టేషన్ నుండి ఆటోనగర్ గేట్",
+    "category": "City",
+    "origin": "Railway Station",
+    "destination": "Autonagar",
+    "via": "",
+    "fare": 20,
+    "distanceKm": 6.4,
+    "durationMins": 15,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "railwaystn",
+      "benzcircle",
+      "patamata",
+      "autonagar"
+    ],
+    "color": "#C8232C"
+  },
+  "55": {
+    "code": "55",
+    "name": "KALESWARA RAO MARKET TO KANURU",
+    "rawName": "Kaleswara Rao Market TO Kanuru",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి కానూరు",
+    "category": "City",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Kanuru",
+    "via": "",
+    "fare": 25,
+    "distanceKm": 10.8,
+    "durationMins": 23,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "benzcircle",
+      "autonagar",
+      "kanuru"
+    ],
+    "color": "#C8232C"
+  },
+  "55S": {
+    "code": "55S",
+    "name": "RAILWAY STATION TO KANURU",
+    "rawName": "Railway Station TO Kanuru",
+    "teName": "విజయవాడ రైల్వే స్టేషన్ నుండి కానూరు",
+    "category": "City",
+    "origin": "Railway Station",
+    "destination": "Kanuru",
+    "via": "",
+    "fare": 20,
+    "distanceKm": 9.2,
+    "durationMins": 20,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "railwaystn",
+      "benzcircle",
+      "autonagar",
+      "kanuru"
+    ],
+    "color": "#C8232C"
+  },
+  "77": {
+    "code": "77",
+    "name": "KALESWARA RAO MARKET TO RAMAVARAPPADU",
+    "rawName": "Kaleswara Rao Market TO Ramavarappadu",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి రామవరప్పాడు రింగ్",
+    "category": "City",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Ramavarappadu",
+    "via": "",
+    "fare": 20,
+    "distanceKm": 8.9,
+    "durationMins": 19,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "machavaram",
+      "gunadala",
+      "ramavarappadu"
+    ],
+    "color": "#C8232C"
+  },
+  "77S": {
+    "code": "77S",
+    "name": "RAILWAY STATION TO RAMAVARAPPADU",
+    "rawName": "Railway Station TO Ramavarappadu",
+    "teName": "విజయవాడ రైల్వే స్టేషన్ నుండి రామవరప్పాడు రింగ్",
+    "category": "City",
+    "origin": "Railway Station",
+    "destination": "Ramavarappadu",
+    "via": "",
+    "fare": 20,
+    "distanceKm": 7.0,
+    "durationMins": 15,
+    "type": "City Ordinary",
+    "frequency": "Every 8-12 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "railwaystn",
+      "machavaram",
+      "gunadala",
+      "ramavarappadu"
+    ],
+    "color": "#C8232C"
+  },
+  "79E": {
+    "code": "79E",
+    "name": "WHOLESALE MARKET TO NIDAMANURU",
+    "rawName": "Wholesale Market TO Nidamanuru",
+    "teName": "హోల్‌సేల్ మార్కెట్ (గొల్లపూడి) నుండి నిడమానూరు",
+    "category": "City",
+    "origin": "Wholesale Market",
+    "destination": "Nidamanuru",
+    "via": "",
+    "fare": 35,
+    "distanceKm": 22.4,
+    "durationMins": 49,
+    "type": "Metro Express",
+    "frequency": "Every 15-20 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "wholesalemarket",
+      "gollapudi",
+      "krmarket",
+      "railwaystn",
+      "gunadala",
+      "ramavarappadu",
+      "nidamanuru"
+    ],
+    "color": "#C8232C"
+  },
+  "79B": {
+    "code": "79B",
+    "name": "WHOLESALE MARKET TO PORANKI",
+    "rawName": "Wholesale Market TO Poranki",
+    "teName": "హోల్‌సేల్ మార్కెట్ (గొల్లపూడి) నుండి పోరంకి సెంటర్",
+    "category": "City",
+    "origin": "Wholesale Market",
+    "destination": "Poranki",
+    "via": "",
+    "fare": 35,
+    "distanceKm": 20.4,
+    "durationMins": 44,
+    "type": "Metro Express",
+    "frequency": "Every 15-20 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "wholesalemarket",
+      "gollapudi",
+      "bhavanipuram",
+      "krmarket",
+      "railwaystn",
+      "benzcircle",
+      "autonagar",
+      "poranki"
+    ],
+    "color": "#C8232C"
+  },
+  "99": {
+    "code": "99",
+    "name": "RAILWAY STATION TO KANKIPADU",
+    "rawName": "Railway Station TO Kankipadu",
+    "teName": "విజయవాడ రైల్వే స్టేషన్ నుండి కంకిపాడు",
+    "category": "City",
+    "origin": "Railway Station",
+    "destination": "Kankipadu",
+    "via": "",
+    "fare": 35,
+    "distanceKm": 24.6,
+    "durationMins": 54,
+    "type": "Metro Express",
+    "frequency": "Every 15-20 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "railwaystn",
+      "benzcircle",
+      "autonagar",
+      "kanuru",
+      "poranki",
+      "kankipadu"
+    ],
+    "color": "#C8232C"
+  },
+  "112A": {
+    "code": "112A",
+    "name": "KALESWARA RAO MARKET TO MUSTHABADH",
+    "rawName": "Kaleswara Rao Market TO Musthabadh",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి ముస్తాబాద్",
+    "category": "Suburban Metro",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Musthabadh",
+    "via": "",
+    "fare": 35,
+    "distanceKm": 24.9,
+    "durationMins": 54,
+    "type": "Metro Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "machavaram",
+      "gunadala",
+      "ramavarappadu",
+      "nidamanuru",
+      "musthabadh"
+    ],
+    "color": "#059669"
+  },
+  "116": {
+    "code": "116",
+    "name": "KALESWARA RAO MARKET TO GANNAVARAM",
+    "rawName": "Kaleswara Rao Market TO Gannavaram",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి గన్నవరం",
+    "category": "Suburban Metro",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Gannavaram",
+    "via": "",
+    "fare": 35,
+    "distanceKm": 25.4,
+    "durationMins": 55,
+    "type": "Metro Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "machavaram",
+      "gunadala",
+      "ramavarappadu",
+      "nidamanuru",
+      "gannavaram"
+    ],
+    "color": "#059669"
+  },
+  "116K": {
+    "code": "116K",
+    "name": "KALESWARA RAO MARKET TO K G PADU",
+    "rawName": "Kaleswara Rao Market TO K G Padu",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి కే.జి. పాడు",
+    "category": "Suburban Metro",
+    "origin": "Kaleswara Rao Market",
+    "destination": "K G Padu",
+    "via": "",
+    "fare": 35,
+    "distanceKm": 25.1,
+    "durationMins": 55,
+    "type": "Metro Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "kgpadu"
+    ],
+    "color": "#059669"
+  },
+  "121": {
+    "code": "121",
+    "name": "RAILWAY STATION TO VANUKURU / MADDURU",
+    "rawName": "Railway Station TO Vanukuru / Madduru",
+    "teName": "విజయవాడ రైల్వే స్టేషన్ నుండి వానుకూరు / మద్దూరు",
+    "category": "Suburban Metro",
+    "origin": "Railway Station",
+    "destination": "Vanukuru / Madduru",
+    "via": "",
+    "fare": 35,
+    "distanceKm": 20.6,
+    "durationMins": 45,
+    "type": "Metro Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "railwaystn",
+      "benzcircle",
+      "autonagar",
+      "kanuru",
+      "poranki",
+      "vanukuru"
+    ],
+    "color": "#059669"
+  },
+  "122": {
+    "code": "122",
+    "name": "KALESWARA RAO MARKET TO VANUKURU / MADDURU",
+    "rawName": "Kaleswara Rao Market TO Vanukuru / Madduru",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి వానుకూరు / మద్దూరు",
+    "category": "Suburban Metro",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Vanukuru / Madduru",
+    "via": "",
+    "fare": 35,
+    "distanceKm": 22.1,
+    "durationMins": 48,
+    "type": "Metro Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "benzcircle",
+      "autonagar",
+      "kanuru",
+      "poranki",
+      "vanukuru"
+    ],
+    "color": "#059669"
+  },
+  "123": {
+    "code": "123",
+    "name": "SHABAD TO KANKIPADU",
+    "rawName": "Shabad TO Kankipadu",
+    "teName": "షాబాద్ నుండి కంకిపాడు",
+    "category": "Suburban Metro",
+    "origin": "Shabad",
+    "destination": "Kankipadu",
+    "via": "",
+    "fare": 20,
+    "distanceKm": 8.0,
+    "durationMins": 17,
+    "type": "Metro Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "shabad",
+      "kankipadu"
+    ],
+    "color": "#059669"
+  },
+  "140": {
+    "code": "140",
+    "name": "KALESWARA RAO MARKET TO UPPULURU",
+    "rawName": "Kaleswara Rao Market TO Uppuluru",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి ఉప్పులూరు",
+    "category": "Suburban Metro",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Uppuluru",
+    "via": "",
+    "fare": 30,
+    "distanceKm": 19.3,
+    "durationMins": 42,
+    "type": "Metro Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "machavaram",
+      "gunadala",
+      "ramavarappadu",
+      "uppuluru"
+    ],
+    "color": "#059669"
+  },
+  "141": {
+    "code": "141",
+    "name": "KALESWARA RAO MARKET TO UPPULURU, VIA RAILWAY STATION",
+    "rawName": "Kaleswara Rao Market TO Uppuluru, via Railway Station",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి ఉప్పులూరు (ద్వారా Railway Station)",
+    "category": "Suburban Metro",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Uppuluru",
+    "via": "Railway Station",
+    "fare": 30,
+    "distanceKm": 19.1,
+    "durationMins": 42,
+    "type": "Metro Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "railwaystn",
+      "uppuluru"
+    ],
+    "color": "#059669"
+  },
+  "144": {
+    "code": "144",
+    "name": "KONDAPALLI TO AUTONAGAR",
+    "rawName": "Kondapalli TO Autonagar",
+    "teName": "కొండపల్లి నుండి ఆటోనగర్ గేట్",
+    "category": "Suburban Metro",
+    "origin": "Kondapalli",
+    "destination": "Autonagar",
+    "via": "",
+    "fare": 35,
+    "distanceKm": 25.2,
+    "durationMins": 55,
+    "type": "Metro Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "kondapalli",
+      "gollapudi",
+      "bhavanipuram",
+      "krmarket",
+      "benzcircle",
+      "autonagar"
+    ],
+    "color": "#059669"
+  },
+  "145": {
+    "code": "145",
+    "name": "KONDAPALLI TO NIDAMANURU",
+    "rawName": "Kondapalli TO Nidamanuru",
+    "teName": "కొండపల్లి నుండి నిడమానూరు",
+    "category": "Suburban Metro",
+    "origin": "Kondapalli",
+    "destination": "Nidamanuru",
+    "via": "",
+    "fare": 45,
+    "distanceKm": 33.5,
+    "durationMins": 73,
+    "type": "Metro Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "kondapalli",
+      "gollapudi",
+      "krmarket",
+      "railwaystn",
+      "gunadala",
+      "ramavarappadu",
+      "nidamanuru"
+    ],
+    "color": "#059669"
+  },
+  "150": {
+    "code": "150",
+    "name": "KONDAPALLI TO KANKIPADU",
+    "rawName": "Kondapalli TO Kankipadu",
+    "teName": "కొండపల్లి నుండి కంకిపాడు",
+    "category": "Suburban Metro",
+    "origin": "Kondapalli",
+    "destination": "Kankipadu",
+    "via": "",
+    "fare": 55,
+    "distanceKm": 43.6,
+    "durationMins": 95,
+    "type": "Suburban Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "kondapalli",
+      "gollapudi",
+      "bhavanipuram",
+      "krmarket",
+      "railwaystn",
+      "benzcircle",
+      "autonagar",
+      "kankipadu"
+    ],
+    "color": "#059669"
+  },
+  "152": {
+    "code": "152",
+    "name": "RAILWAY STATION TO KAVULURU",
+    "rawName": "Railway Station TO Kavuluru",
+    "teName": "విజయవాడ రైల్వే స్టేషన్ నుండి కావులూరు",
+    "category": "Suburban Metro",
+    "origin": "Railway Station",
+    "destination": "Kavuluru",
+    "via": "",
+    "fare": 25,
+    "distanceKm": 14.4,
+    "durationMins": 31,
+    "type": "Metro Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "railwaystn",
+      "kavuluru"
+    ],
+    "color": "#059669"
+  },
+  "154": {
+    "code": "154",
+    "name": "KALESWARA RAO MARKET TO KANKIPADU",
+    "rawName": "Kaleswara Rao Market TO Kankipadu",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి కంకిపాడు",
+    "category": "Suburban Metro",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Kankipadu",
+    "via": "",
+    "fare": 35,
+    "distanceKm": 26.1,
+    "durationMins": 57,
+    "type": "Metro Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "benzcircle",
+      "autonagar",
+      "kanuru",
+      "poranki",
+      "kankipadu"
+    ],
+    "color": "#059669"
+  },
+  "188": {
+    "code": "188",
+    "name": "KONDAPALLI TO GANNAVARAM",
+    "rawName": "Kondapalli TO Gannavaram",
+    "teName": "కొండపల్లి నుండి గన్నవరం",
+    "category": "Suburban Metro",
+    "origin": "Kondapalli",
+    "destination": "Gannavaram",
+    "via": "",
+    "fare": 55,
+    "distanceKm": 42.5,
+    "durationMins": 93,
+    "type": "Suburban Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "kondapalli",
+      "gollapudi",
+      "krmarket",
+      "railwaystn",
+      "gunadala",
+      "ramavarappadu",
+      "gannavaram"
+    ],
+    "color": "#059669"
+  },
+  "201C": {
+    "code": "201C",
+    "name": "KALESWARA RAO MARKET TO PEDDA OUTPALLI",
+    "rawName": "Kaleswara Rao Market TO Pedda Outpalli",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి పెద్ద అవుట్‌పల్లి",
+    "category": "Suburban Metro",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Pedda Outpalli",
+    "via": "",
+    "fare": 45,
+    "distanceKm": 32.5,
+    "durationMins": 71,
+    "type": "Metro Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "machavaram",
+      "gunadala",
+      "ramavarappadu",
+      "nidamanuru",
+      "peddaoutpalli"
+    ],
+    "color": "#059669"
+  },
+  "201T": {
+    "code": "201T",
+    "name": "KALESWARA RAO MARKET TO TELAPROLU",
+    "rawName": "Kaleswara Rao Market TO Telaprolu",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి తేలప్రోలు",
+    "category": "Suburban Metro",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Telaprolu",
+    "via": "",
+    "fare": 55,
+    "distanceKm": 39.0,
+    "durationMins": 85,
+    "type": "Suburban Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "machavaram",
+      "gunadala",
+      "ramavarappadu",
+      "nidamanuru",
+      "telaprolu"
+    ],
+    "color": "#059669"
+  },
+  "2010": {
+    "code": "2010",
+    "name": "KALESWARA RAO MARKET TO ORUGALLA",
+    "rawName": "Kaleswara Rao Market TO Orugalla",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి ఓరుగళ్ల",
+    "category": "Suburban Metro",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Orugalla",
+    "via": "",
+    "fare": 45,
+    "distanceKm": 30.2,
+    "durationMins": 66,
+    "type": "Metro Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "orugalla"
+    ],
+    "color": "#059669"
+  },
+  "203C": {
+    "code": "203C",
+    "name": "KALESWARA RAO MARKET TO PODDUTURU",
+    "rawName": "Kaleswara Rao Market TO Podduturu",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి పొద్దుటూరు",
+    "category": "Suburban Metro",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Podduturu",
+    "via": "",
+    "fare": 35,
+    "distanceKm": 26.1,
+    "durationMins": 57,
+    "type": "Metro Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "podduturu"
+    ],
+    "color": "#059669"
+  },
+  "203K": {
+    "code": "203K",
+    "name": "KALESWARA RAO MARKET TO KONDURU",
+    "rawName": "Kaleswara Rao Market TO Konduru",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి కొండూరు",
+    "category": "Suburban Metro",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Konduru",
+    "via": "",
+    "fare": 35,
+    "distanceKm": 22.0,
+    "durationMins": 48,
+    "type": "Metro Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "konduru"
+    ],
+    "color": "#059669"
+  },
+  "203T": {
+    "code": "203T",
+    "name": "KALESWARA RAO MARKET TO TENNERU",
+    "rawName": "Kaleswara Rao Market TO Tenneru",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి తెన్నేరు",
+    "category": "Suburban Metro",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Tenneru",
+    "via": "",
+    "fare": 45,
+    "distanceKm": 28.5,
+    "durationMins": 62,
+    "type": "Metro Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "tenneru"
+    ],
+    "color": "#059669"
+  },
+  "208": {
+    "code": "208",
+    "name": "KALESWARA RAO MARKET TO AGIRAPALLI",
+    "rawName": "Kaleswara Rao Market TO Agirapalli",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి అగిరిపల్లి",
+    "category": "Suburban Metro",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Agirapalli",
+    "via": "",
+    "fare": 45,
+    "distanceKm": 34.6,
+    "durationMins": 76,
+    "type": "Metro Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "madhuranagar",
+      "vombaycolony",
+      "nunna",
+      "agirapalli"
+    ],
+    "color": "#059669"
+  },
+  "209": {
+    "code": "209",
+    "name": "KALESWARA RAO MARKET TO VALLURU PALEM",
+    "rawName": "Kaleswara Rao Market TO Valluru Palem",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి వల్లూరు పాలెం",
+    "category": "Suburban Metro",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Valluru Palem",
+    "via": "",
+    "fare": 45,
+    "distanceKm": 37.8,
+    "durationMins": 83,
+    "type": "Suburban Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "vallurupalem"
+    ],
+    "color": "#059669"
+  },
+  "209A": {
+    "code": "209A",
+    "name": "KALESWARA RAO MARKET TO ROYYURU",
+    "rawName": "Kaleswara Rao Market TO Royyuru",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి రొయ్యూరు",
+    "category": "Suburban Metro",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Royyuru",
+    "via": "",
+    "fare": 45,
+    "distanceKm": 36.2,
+    "durationMins": 79,
+    "type": "Suburban Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "royyuru"
+    ],
+    "color": "#059669"
+  },
+  "209T": {
+    "code": "209T",
+    "name": "KALESWARA RAO MARKET TO THOTLAVALLURU",
+    "rawName": "Kaleswara Rao Market TO Thotlavalluru",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి తోట్లవల్లూరు",
+    "category": "Suburban Metro",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Thotlavalluru",
+    "via": "",
+    "fare": 55,
+    "distanceKm": 41.1,
+    "durationMins": 90,
+    "type": "Suburban Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "thotlavalluru"
+    ],
+    "color": "#059669"
+  },
+  "211": {
+    "code": "211",
+    "name": "KALESWARA RAO MARKET TO KOLLVENU",
+    "rawName": "Kaleswara Rao Market TO Kollvenu",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి కొల్లవేణు",
+    "category": "Suburban Metro",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Kollvenu",
+    "via": "",
+    "fare": 35,
+    "distanceKm": 22.8,
+    "durationMins": 50,
+    "type": "Metro Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "kollvenu"
+    ],
+    "color": "#059669"
+  },
+  "212": {
+    "code": "212",
+    "name": "KALESWARA RAO MARKET TO CHIKKAVARAM",
+    "rawName": "Kaleswara Rao Market TO Chikkavaram",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి చిక్కవరం",
+    "category": "Suburban Metro",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Chikkavaram",
+    "via": "",
+    "fare": 35,
+    "distanceKm": 27.5,
+    "durationMins": 60,
+    "type": "Metro Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "chikkavaram"
+    ],
+    "color": "#059669"
+  },
+  "212P": {
+    "code": "212P",
+    "name": "KALESWARA RAO MARKET TO GANNAVARAM, VIA P. PATNAM",
+    "rawName": "Kaleswara Rao Market TO Gannavaram, via P. Patnam",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి గన్నవరం (ద్వారా P. Patnam)",
+    "category": "Suburban Metro",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Gannavaram",
+    "via": "P. Patnam",
+    "fare": 35,
+    "distanceKm": 26.6,
+    "durationMins": 58,
+    "type": "Metro Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "ppatnam",
+      "gannavaram"
+    ],
+    "color": "#059669"
+  },
+  "212S": {
+    "code": "212S",
+    "name": "KALESWARA RAO MARKET TO GANNAVARAM, VIA S. GUDEM",
+    "rawName": "Kaleswara Rao Market TO Gannavaram, via S. Gudem",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి గన్నవరం (ద్వారా S. Gudem)",
+    "category": "Suburban Metro",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Gannavaram",
+    "via": "S. Gudem",
+    "fare": 35,
+    "distanceKm": 25.6,
+    "durationMins": 56,
+    "type": "Metro Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "sgudem",
+      "gannavaram"
+    ],
+    "color": "#059669"
+  },
+  "212M": {
+    "code": "212M",
+    "name": "KALESWARA RAO MARKET TO MUDIRAJU PALEM",
+    "rawName": "Kaleswara Rao Market TO Mudiraju Palem",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి ముదిరాజు పాలెం",
+    "category": "Suburban Metro",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Mudiraju Palem",
+    "via": "",
+    "fare": 45,
+    "distanceKm": 28.4,
+    "durationMins": 62,
+    "type": "Metro Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "mudirajupalem"
+    ],
+    "color": "#059669"
+  },
+  "215S": {
+    "code": "215S",
+    "name": "RAILWAY STATION TO NUTAKKI",
+    "rawName": "Railway Station TO Nutakki",
+    "teName": "విజయవాడ రైల్వే స్టేషన్ నుండి నూతక్కి",
+    "category": "Suburban Metro",
+    "origin": "Railway Station",
+    "destination": "Nutakki",
+    "via": "",
+    "fare": 35,
+    "distanceKm": 23.8,
+    "durationMins": 52,
+    "type": "Metro Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "railwaystn",
+      "pnbs",
+      "mangalagiri",
+      "nutakki"
+    ],
+    "color": "#059669"
+  },
+  "218M": {
+    "code": "218M",
+    "name": "BUS STAND TO MAILAVARAM",
+    "rawName": "Bus Stand TO Mailavaram",
+    "teName": "పండిట్ నెహ్రూ బస్ స్టేషన్ (పీఎన్‌బీఎస్) నుండి మైలవరం",
+    "category": "Suburban Metro",
+    "origin": "Bus Stand",
+    "destination": "Mailavaram",
+    "via": "",
+    "fare": 45,
+    "distanceKm": 34.9,
+    "durationMins": 76,
+    "type": "Metro Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "pnbs",
+      "mailavaram"
+    ],
+    "color": "#059669"
+  },
+  "220": {
+    "code": "220",
+    "name": "KALESWARA RAO MARKET TO TENNERU",
+    "rawName": "Kaleswara Rao Market TO Tenneru",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి తెన్నేరు",
+    "category": "Suburban Metro",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Tenneru",
+    "via": "",
+    "fare": 45,
+    "distanceKm": 28.5,
+    "durationMins": 62,
+    "type": "Metro Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "tenneru"
+    ],
+    "color": "#059669"
+  },
+  "222": {
+    "code": "222",
+    "name": "KALESWARA RAO MARKET TO VUYYURU",
+    "rawName": "Kaleswara Rao Market TO Vuyyuru",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి వుయ్యూరు",
+    "category": "Suburban Metro",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Vuyyuru",
+    "via": "",
+    "fare": 55,
+    "distanceKm": 38.2,
+    "durationMins": 84,
+    "type": "Suburban Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "benzcircle",
+      "autonagar",
+      "kanuru",
+      "poranki",
+      "vuyyuru"
+    ],
+    "color": "#059669"
+  },
+  "223M": {
+    "code": "223M",
+    "name": "KALESWARA RAO MARKET TO MANIKONDA",
+    "rawName": "Kaleswara Rao Market TO Manikonda",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి మణికొండ",
+    "category": "Suburban Metro",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Manikonda",
+    "via": "",
+    "fare": 45,
+    "distanceKm": 33.4,
+    "durationMins": 73,
+    "type": "Metro Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "manikonda"
+    ],
+    "color": "#059669"
+  },
+  "226": {
+    "code": "226",
+    "name": "BUS STAND TO CHIRAVURU",
+    "rawName": "Bus Stand TO Chiravuru",
+    "teName": "పండిట్ నెహ్రూ బస్ స్టేషన్ (పీఎన్‌బీఎస్) నుండి చిరవూరు",
+    "category": "Suburban Metro",
+    "origin": "Bus Stand",
+    "destination": "Chiravuru",
+    "via": "",
+    "fare": 30,
+    "distanceKm": 18.5,
+    "durationMins": 40,
+    "type": "Metro Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "pnbs",
+      "mangalagiri",
+      "chiravuru"
+    ],
+    "color": "#059669"
+  },
+  "239": {
+    "code": "239",
+    "name": "KALESWARA RAO MARKET TO KANASANEPALLI",
+    "rawName": "Kaleswara Rao Market TO Kanasanepalli",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి కనసనేపల్లి",
+    "category": "Suburban Metro",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Kanasanepalli",
+    "via": "",
+    "fare": 30,
+    "distanceKm": 19.9,
+    "durationMins": 43,
+    "type": "Metro Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "kanasanepalli"
+    ],
+    "color": "#059669"
+  },
+  "241": {
+    "code": "241",
+    "name": "KANKIPADU TO GANNAVARAM",
+    "rawName": "Kankipadu TO Gannavaram",
+    "teName": "కంకిపాడు నుండి గన్నవరం",
+    "category": "Suburban Metro",
+    "origin": "Kankipadu",
+    "destination": "Gannavaram",
+    "via": "",
+    "fare": 25,
+    "distanceKm": 14.9,
+    "durationMins": 32,
+    "type": "Metro Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "kankipadu",
+      "gannavaram"
+    ],
+    "color": "#059669"
+  },
+  "248": {
+    "code": "248",
+    "name": "AGIRAPALLI TO KANKIPADU",
+    "rawName": "Agirapalli TO Kankipadu",
+    "teName": "అగిరిపల్లి నుండి కంకిపాడు",
+    "category": "Suburban Metro",
+    "origin": "Agirapalli",
+    "destination": "Kankipadu",
+    "via": "",
+    "fare": 45,
+    "distanceKm": 36.9,
+    "durationMins": 81,
+    "type": "Suburban Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "agirapalli",
+      "kankipadu"
+    ],
+    "color": "#059669"
+  },
+  "250V": {
+    "code": "250V",
+    "name": "KALESWARA RAO MARKET TO VEMANDA",
+    "rawName": "Kaleswara Rao Market TO Vemanda",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి వేమండ",
+    "category": "Suburban Metro",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Vemanda",
+    "via": "",
+    "fare": 45,
+    "distanceKm": 34.6,
+    "durationMins": 76,
+    "type": "Metro Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "vemanda"
+    ],
+    "color": "#059669"
+  },
+  "252": {
+    "code": "252",
+    "name": "KALESWARA RAO MARKET TO HANUMAN JUNCTION, VIA ELURU ROAD",
+    "rawName": "Kaleswara Rao Market TO Hanuman Junction, via Eluru Road",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి హనుమాన్ జంక్షన్ (ద్వారా Eluru Road)",
+    "category": "Suburban Metro",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Hanuman Junction",
+    "via": "Eluru Road",
+    "fare": 55,
+    "distanceKm": 50.4,
+    "durationMins": 110,
+    "type": "Suburban Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "railwaystn",
+      "gunadala",
+      "ramavarappadu",
+      "hanumanjunction"
+    ],
+    "color": "#059669"
+  },
+  "252B": {
+    "code": "252B",
+    "name": "KALESWARA RAO MARKET TO HANUMAN JUNCTION, VIA BUNDAR ROAD",
+    "rawName": "Kaleswara Rao Market TO Hanuman Junction, via Bundar Road",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి హనుమాన్ జంక్షన్ (ద్వారా Bundar Road)",
+    "category": "Suburban Metro",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Hanuman Junction",
+    "via": "Bundar Road",
+    "fare": 55,
+    "distanceKm": 52.4,
+    "durationMins": 115,
+    "type": "Suburban Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "benzcircle",
+      "autonagar",
+      "hanumanjunction"
+    ],
+    "color": "#059669"
+  },
+  "257": {
+    "code": "257",
+    "name": "RAILWAY STATION TO PEDDA OGIRALA",
+    "rawName": "Railway Station TO Pedda Ogirala",
+    "teName": "విజయవాడ రైల్వే స్టేషన్ నుండి పెద్ద ఓగిరాల",
+    "category": "Suburban Metro",
+    "origin": "Railway Station",
+    "destination": "Pedda Ogirala",
+    "via": "",
+    "fare": 45,
+    "distanceKm": 31.6,
+    "durationMins": 69,
+    "type": "Metro Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "railwaystn",
+      "peddaogirala"
+    ],
+    "color": "#059669"
+  },
+  "266": {
+    "code": "266",
+    "name": "VIJAYAWADA TO KANCHIKACHERLA",
+    "rawName": "Vijayawada TO Kanchikacherla",
+    "teName": "విజయవాడ రైల్వే స్టేషన్ నుండి కంచికచర్ల",
+    "category": "Suburban Metro",
+    "origin": "Vijayawada",
+    "destination": "Kanchikacherla",
+    "via": "",
+    "fare": 45,
+    "distanceKm": 37.2,
+    "durationMins": 81,
+    "type": "Suburban Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "railwaystn",
+      "kanchikacherla"
+    ],
+    "color": "#059669"
+  },
+  "305M": {
+    "code": "305M",
+    "name": "VIJAYAWADA TO MOGHULURU TO VEERULAPADU",
+    "rawName": "Vijayawada TO Moghuluru TO Veerulapadu",
+    "teName": "విజయవాడ రైల్వే స్టేషన్ నుండి వీరులపాడు",
+    "category": "Suburban Metro",
+    "origin": "Vijayawada",
+    "destination": "Veerulapadu",
+    "via": "",
+    "fare": 55,
+    "distanceKm": 43.4,
+    "durationMins": 95,
+    "type": "Suburban Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "railwaystn",
+      "moghuluru",
+      "veerulapadu"
+    ],
+    "color": "#059669"
+  },
+  "308": {
+    "code": "308",
+    "name": "VIJAYAWADA TO NUZIVIDU",
+    "rawName": "Vijayawada TO Nuzividu",
+    "teName": "విజయవాడ రైల్వే స్టేషన్ నుండి నూజివీడు",
+    "category": "Suburban Metro",
+    "origin": "Vijayawada",
+    "destination": "Nuzividu",
+    "via": "",
+    "fare": 55,
+    "distanceKm": 47.4,
+    "durationMins": 104,
+    "type": "Suburban Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "railwaystn",
+      "nuzividu"
+    ],
+    "color": "#059669"
+  },
+  "309": {
+    "code": "309",
+    "name": "IBRAHIMPATNAM TO VIJAYAWADA TO JAMALAPURAM",
+    "rawName": "Ibrahimpatnam TO Vijayawada TO Jamalapuram",
+    "teName": "ఇబ్రహీంపట్నం రింగ్ నుండి జమలాపురం",
+    "category": "Suburban Metro",
+    "origin": "Ibrahimpatnam",
+    "destination": "Jamalapuram",
+    "via": "",
+    "fare": 55,
+    "distanceKm": 72.4,
+    "durationMins": 159,
+    "type": "Suburban Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "ibrahimpatnam",
+      "railwaystn",
+      "jamalapuram"
+    ],
+    "color": "#059669"
+  },
+  "309R": {
+    "code": "309R",
+    "name": "IBRAHIMPATNAM TO KANCHIKACHERLA TO JAMALAPURAM TO MILAVARAM TO VIJAYAWADA",
+    "rawName": "Ibrahimpatnam TO Kanchikacherla TO Jamalapuram TO Milavaram TO Vijayawada",
+    "teName": "ఇబ్రహీంపట్నం రింగ్ నుండి విజయవాడ రైల్వే స్టేషన్",
+    "category": "Suburban Metro",
+    "origin": "Ibrahimpatnam",
+    "destination": "Vijayawada",
+    "via": "",
+    "fare": 55,
+    "distanceKm": 116.5,
+    "durationMins": 256,
+    "type": "Suburban Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "ibrahimpatnam",
+      "kanchikacherla",
+      "jamalapuram",
+      "mailavaram",
+      "railwaystn"
+    ],
+    "color": "#059669"
+  },
+  "333": {
+    "code": "333",
+    "name": "KALESWARA RAO MARKET TO PAMARRU",
+    "rawName": "Kaleswara Rao Market TO Pamarru",
+    "teName": "కళేశ్వరరావు మార్కెట్ నుండి పామర్రు",
+    "category": "Suburban Metro",
+    "origin": "Kaleswara Rao Market",
+    "destination": "Pamarru",
+    "via": "",
+    "fare": 55,
+    "distanceKm": 53.2,
+    "durationMins": 117,
+    "type": "Suburban Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "krmarket",
+      "benzcircle",
+      "autonagar",
+      "kanuru",
+      "poranki",
+      "pamarru"
+    ],
+    "color": "#059669"
+  },
+  "350": {
+    "code": "350",
+    "name": "VIJAYAWADA TO MILAVARAM",
+    "rawName": "Vijayawada TO Milavaram",
+    "teName": "విజయవాడ రైల్వే స్టేషన్ నుండి మైలవరం",
+    "category": "Suburban Metro",
+    "origin": "Vijayawada",
+    "destination": "Milavaram",
+    "via": "",
+    "fare": 45,
+    "distanceKm": 33.4,
+    "durationMins": 73,
+    "type": "Metro Express",
+    "frequency": "Every 20-30 mins",
+    "firstBus": "05:30 AM",
+    "lastBus": "10:45 PM",
+    "stops": [
+      "railwaystn",
+      "mailavaram"
+    ],
+    "color": "#059669"
+  }
+};
+
+
+    const I18N = {
+      en: {
+        home: "Home",
+        map: "Live Map",
+        planner: "Journey Planner",
+        routes: "Routes Directory",
+        saved: "Saved",
+        tagline: "APSRTC Vijayawada Division • 97 Active Routes",
+        radius: "Search Radius:",
+        nearby_title: "Live Buses at Active Hub",
+        planner_heading: "Vijayawada Journey Matrix Solver (97 Routes)",
+        saved_title: "Saved Favorite Stops & Routes",
+        route_dir: "APSRTC Route Network"
+      },
+      te: {
+        home: "హోమ్",
+        map: "లైవ్ మ్యాప్",
+        planner: "రూట్ ప్లానర్",
+        routes: "రూట్ల డైరెక్టరీ",
+        saved: "సేవ్ చేసినవి",
+        tagline: "ఏపీఎస్సార్టీసీ విజయవాడ • 97 లైవ్ రూట్లు",
+        radius: "పరిధి:",
+        nearby_title: "ఈ స్టాప్ వద్ద లైవ్ బస్సులు",
+        planner_heading: "విజయవాడ ప్రయాణ మార్గాల శోధన (97 రూట్లు)",
+        saved_title: "మీరు సేవ్ చేసుకున్న స్టాప్‌లు & రూట్లు",
+        route_dir: "అందుబాటులో ఉన్న రూట్లు"
+      }
+    };
+
+    class ErraBusApp {
+      constructor() {
+        this.currentLang = localStorage.getItem('errabus_lang') || 'en';
+        this.currentTheme = localStorage.getItem('errabus_theme') || 'dark';
+        this.activeTab = 'home';
+        this.userLocationKey = 'krmarket';
+        this.radiusFilterKm = 3;
+        this.busTypeFilter = 'ALL';
+        this.statusFilter = 'ALL';
+
+        this.selectedRouteCode = '1';
+        this.routeCategoryFilter = 'ALL';
+        this.routeSearchQuery = '';
+        this.routeDirectionForward = true;
+        this.cameraLockedBusId = null;
+        this.mapTrackedRouteCode = null;
+
+        // GPS real-location state
+        this.userLat    = null;
+        this.userLng    = null;
+        this.gpsMode    = false;
+        this.gpsWatchId = null;
+
+        // Stable chronological live bus tracking (prevents shuffling in seconds)
+        this.currentRenderedNearbyIds = [];
+        this.nearbyOrderLastChecked = 0;
+        this.selectedSheetBusId = null;
+        this.mapStyle = 'streets';
+
+        this.savedStops = JSON.parse(localStorage.getItem('errabus_saved_stops') || '["krmarket", "railwaystn", "benzcircle"]');
+        this.savedRoutes = JSON.parse(localStorage.getItem('errabus_saved_routes') || '["1", "116", "5G"]');
+
+        this.vehicles = [];
+
+        this.leafletMap = null;
+        this.leafletMarkers = {};
+        this.userMarker = null;
+        this.radiusCircle = null;
+        this.routePolylines = [];
+        this.highlightedRouteLayer = null;
+
+        this.init();
+      }
+
+      init() {
+        this.applyTheme(this.currentTheme);
+        this.seedSimulatedFleet();
+        // Prompt for real GPS on startup
+        setTimeout(() => this.requestGPSLocation(), 800);
+
+        setInterval(() => this.simulationStep(), 1600);
+
+        this.isReady = false;
+        const triggerReady = () => {
+          if (this.isReady) return;
+          this.isReady = true;
+          this.initPlannerDropdowns();
+          this.initLeafletMap();
+          this.renderUI();
+          this.updateTranslations();
+        };
+
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
+          setTimeout(triggerReady, 10);
+        } else {
+          window.addEventListener('DOMContentLoaded', triggerReady);
+          window.addEventListener('load', triggerReady);
+        }
+      }
+
+      // ── Real GPS Location ─────────────────────────────────────────────────
+      requestGPSLocation() {
+        if (!('geolocation' in navigator)) {
+          this.showGPSStatus('unavailable');
+          return;
+        }
+        this.showGPSStatus('requesting');
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            this.userLat  = pos.coords.latitude;
+            this.userLng  = pos.coords.longitude;
+            this.gpsMode  = true;
+            this.showGPSStatus('active');
+            // Continue watching for movement
+            if (this.gpsWatchId) navigator.geolocation.clearWatch(this.gpsWatchId);
+            this.gpsWatchId = navigator.geolocation.watchPosition(
+              (p) => {
+                this.userLat = p.coords.latitude;
+                this.userLng = p.coords.longitude;
+                this.renderNearbyBuses();
+                // Keep map marker in sync
+                if (this.leafletMap && this.userMarker) {
+                  this.userMarker.setLatLng([p.coords.latitude, p.coords.longitude]);
+                  if (this.radiusCircle) this.radiusCircle.setLatLng([p.coords.latitude, p.coords.longitude]);
+                }
+              },
+              null,
+              { enableHighAccuracy: true, maximumAge: 8000, timeout: 30000 }
+            );
+            this.renderNearbyBuses();
+          },
+          (err) => {
+            this.gpsMode = false;
+            this.showGPSStatus('denied');
+            this.renderNearbyBuses();
+          },
+          { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
+        );
+      }
+
+      showGPSStatus(state) {
+        const icon    = document.getElementById('gps-status-icon');
+        const banner  = document.getElementById('gps-permission-banner');
+        const lbl     = document.getElementById('lbl-user-location');
+        const hubRow  = document.getElementById('hub-selector-row');
+
+        if (state === 'requesting') {
+          if (banner) banner.classList.remove('hidden');
+          if (icon)   icon.className = 'fa-solid fa-location-crosshairs text-base text-amber-400 animate-pulse';
+          if (lbl)    lbl.textContent = 'Detecting your location...';
+
+        } else if (state === 'active') {
+          if (banner) banner.classList.add('hidden');
+          if (icon)   icon.className = 'fa-solid fa-location-crosshairs text-base text-emerald-400';
+          if (lbl)    lbl.innerHTML  = '<span class="text-emerald-500 font-bold">Your GPS Location</span> <span class="text-[10px] font-medium text-slate-400 ml-1">(live)</span>';
+          if (hubRow) hubRow.classList.add('hidden');
+
+        } else if (state === 'denied') {
+          if (banner) banner.classList.remove('hidden');
+          if (icon)   icon.className = 'fa-solid fa-location-crosshairs text-base text-slate-400';
+          const bannerTxt = banner ? banner.querySelector('span') : null;
+          if (bannerTxt) bannerTxt.innerHTML = 'Location access denied. <strong>Tap below</strong> to retry, or select a hub manually.';
+
+        } else { // unavailable
+          if (banner) banner.classList.add('hidden');
+          if (icon)   icon.className = 'fa-solid fa-location-crosshairs text-base text-slate-400';
+        }
+      }
+      // ──────────────────────────────────────────────────────────────────────
+
+      initPlannerDropdowns() {
+        const origSelect = document.getElementById('select-planner-origin');
+        const destSelect = document.getElementById('select-planner-destination');
+        if (!origSelect || !destSelect) return;
+
+        const majorStops = Object.values(STOPS_DATABASE).sort((a, b) => a.name.localeCompare(b.name));
+
+        const optionsHtml = majorStops.map(s => `
+          <option value="${s.id}">${s.name} (${s.teName})</option>
+        `).join('');
+
+        origSelect.innerHTML = optionsHtml;
+        destSelect.innerHTML = optionsHtml;
+
+        origSelect.value = 'krmarket';
+        destSelect.value = 'gannavaram';
+      }
+
+      // High-Density Fleet Simulation Engine covering all routes
+      seedSimulatedFleet() {
+        const regNums = [
+          'AP 16 Z 4021', 'AP 16 Z 5890', 'AP 16 Z 1012', 'AP 16 Z 9934', 
+          'AP 16 Z 3321', 'AP 16 Z 7741', 'AP 16 Z 8820', 'AP 16 Z 2291',
+          'AP 16 TE 1204', 'AP 16 TE 5532', 'AP 16 TH 9011', 'AP 16 Z 6632',
+          'AP 16 Z 8812', 'AP 16 Z 4410', 'AP 16 TE 7719', 'AP 16 Z 3302',
+          'AP 16 Z 1144', 'AP 16 TE 9923', 'AP 16 Z 5501', 'AP 16 TH 3312'
+        ];
+
+        this.vehicles = [];
+        let id = 100;
+
+        Object.values(ROUTES_DATABASE).forEach(route => {
+          if (!route.stops || route.stops.length < 2) return;
+
+          // Number of buses based on route distance and category
+          const numBuses = route.distanceKm > 30 ? 2 : (route.stops.length >= 4 ? 2 : 1);
+
+          for (let i = 0; i < numBuses; i++) {
+            id++;
+            const startStopIdx = Math.floor((i / numBuses) * (route.stops.length - 1));
+            const stopA = STOPS_DATABASE[route.stops[startStopIdx]] || STOPS_DATABASE['krmarket'];
+            
+            this.vehicles.push({
+              id: `BUS-${id}`,
+              reg: regNums[id % regNums.length],
+              routeCode: route.code,
+              type: route.type,
+              currentStopIndex: startStopIdx,
+              progress: (i * 0.5 + Math.random() * 0.4) % 1.0,
+              speed: 24 + Math.floor(Math.random() * 22),
+              occupancy: Math.floor(25 + Math.random() * 68),
+              status: Math.random() > 0.90 ? 'Delayed' : 'Live',
+              lat: stopA.lat,
+              lng: stopA.lng,
+              heading: 0,
+              lastPing: Date.now()
+            });
+          }
+        });
+
+        this.calculateVehicleCoordinates();
+      }
+
+      simulationStep() {
+        this.vehicles.forEach(v => {
+          const route = ROUTES_DATABASE[v.routeCode];
+          if (!route || !route.stops || route.stops.length < 2) return;
+
+          // Realistic city bus transit progression (smooth gliding, no jumping)
+          const stepDelta = 0.004 + (v.speed / 18000);
+          v.progress += stepDelta;
+
+          if (v.progress >= 1.0) {
+            v.progress = 0;
+            v.currentStopIndex = (v.currentStopIndex + 1) % (route.stops.length - 1);
+          }
+
+          v.lastPing = Date.now();
+        });
+
+        this.calculateVehicleCoordinates();
+        this.updateUIComponents();
+      }
+
+      calculateVehicleCoordinates() {
+        this.vehicles.forEach(v => {
+          const route = ROUTES_DATABASE[v.routeCode];
+          if (!route) return;
+
+          const stopA = STOPS_DATABASE[route.stops[v.currentStopIndex]];
+          const stopB = STOPS_DATABASE[route.stops[v.currentStopIndex + 1]] || stopA;
+
+          if (stopA && stopB) {
+            v.lat = stopA.lat + (stopB.lat - stopA.lat) * v.progress;
+            v.lng = stopA.lng + (stopB.lng - stopA.lng) * v.progress;
+
+            const y = Math.sin(stopB.lng - stopA.lng) * Math.cos(stopB.lat);
+            const x = Math.cos(stopA.lat) * Math.sin(stopB.lat) - Math.sin(stopA.lat) * Math.cos(stopB.lat) * Math.cos(stopB.lng - stopA.lng);
+            v.heading = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+          }
+        });
+      }
+
+      initLeafletMap() {
+        if (typeof L === 'undefined') {
+          console.warn('Leaflet map engine not yet available or offline.');
+          return;
+        }
+        const userStop = STOPS_DATABASE[this.userLocationKey] || STOPS_DATABASE['krmarket'];
+        const mapEl = document.getElementById('map-container');
+        if (!mapEl || this.leafletMap) return;
+
+        try {
+          this.leafletMap = L.map('map-container', { zoomControl: false }).setView([userStop.lat, userStop.lng], 13);
+
+          const tileUrl = this.getTileLayerUrl();
+
+          this.currentTileLayer = L.tileLayer(tileUrl, {
+            maxZoom: 19,
+            attribution: 'Tiles &copy; Esri &mdash; APSRTC ERRA BUS Smart Transit'
+          }).addTo(this.leafletMap);
+
+          const userIcon = L.divIcon({
+            className: 'custom-user-icon',
+            html: `<div class="w-6 h-6 rounded-full bg-emerald-500 border-2 border-white shadow-lg pulse-halo"></div>`,
+            iconSize: [24, 24]
+          });
+
+          this.userMarker = L.marker([userStop.lat, userStop.lng], { icon: userIcon }).addTo(this.leafletMap);
+          this.userMarker.bindPopup(`<b>${userStop.name}</b><br><span class="text-xs text-slate-500">${userStop.teName}</span>`);
+
+          this.radiusCircle = L.circle([userStop.lat, userStop.lng], {
+            color: '#0B5FFF',
+            fillColor: '#0B5FFF',
+            fillOpacity: 0.08,
+            radius: this.radiusFilterKm * 1000
+          }).addTo(this.leafletMap);
+
+          this.renderMapPolylines();
+          this.updateMapMarkers();
+        } catch (err) {
+          console.warn("Map setup notice:", err);
+        }
+      }
+
+      renderMapPolylines() {
+        if (!this.leafletMap) return;
+        this.routePolylines.forEach(p => this.leafletMap.removeLayer(p));
+        this.routePolylines = [];
+
+        const keyCorridors = ['1', '2', '5G', '10', '116', '144', '208', '252', '47V'];
+        keyCorridors.forEach(code => {
+          const route = ROUTES_DATABASE[code];
+          if (!route) return;
+
+          const coords = route.stops.map(sKey => [STOPS_DATABASE[sKey].lat, STOPS_DATABASE[sKey].lng]);
+          const polyline = L.polyline(coords, {
+            color: route.color,
+            weight: 3.5,
+            opacity: 0.65
+          }).addTo(this.leafletMap);
+
+          polyline.bindTooltip(`Route ${route.code}: ${route.name}`, { sticky: true });
+          this.routePolylines.push(polyline);
+        });
+      }
+
+      updateMapMarkers() {
+        if (!this.leafletMap) return;
+
+        // Determine reference point: real GPS first, fallback to selected hub
+        let refLat, refLng, refName;
+        if (this.gpsMode && this.userLat !== null && this.userLng !== null) {
+          refLat  = this.userLat;
+          refLng  = this.userLng;
+          refName = 'Your GPS Location';
+        } else {
+          const userStop = STOPS_DATABASE[this.userLocationKey];
+          if (userStop) {
+            refLat  = userStop.lat;
+            refLng  = userStop.lng;
+            refName = userStop.name;
+          }
+        }
+
+        // Keep user marker and radius circle in sync
+        if (refLat && refLng && this.userMarker) {
+          this.userMarker.setLatLng([refLat, refLng]);
+          if (this.radiusCircle) {
+            this.radiusCircle.setLatLng([refLat, refLng]);
+            this.radiusCircle.setRadius(this.radiusFilterKm * 1000);
+          }
+        }
+
+        this.vehicles.forEach(v => {
+          const route = ROUTES_DATABASE[v.routeCode];
+          if (!route) return;
+
+          let distKm = 0;
+          let etaMins = 0;
+          if (refLat && refLng) {
+            distKm = this.calculateDistance(refLat, refLng, v.lat, v.lng);
+            v.distKm = distKm;
+            etaMins = Math.max(1, Math.round((distKm / Math.max(v.speed, 18)) * 60));
+            v.etaMins = etaMins;
+          }
+
+          const isInsideRadius = distKm <= this.radiusFilterKm;
+          const haloColor = isInsideRadius 
+            ? (etaMins <= 4 ? '#10b981' : '#0B5FFF') 
+            : (v.status === 'Delayed' ? '#f59e0b' : '#64748b');
+
+          const pulseClass = (isInsideRadius && etaMins <= 4) ? 'animate-pulse' : '';
+
+          const busIconHtml = `
+            <div class="bus-marker-wrapper flex items-center justify-center ${pulseClass}" style="transform: rotate(${v.heading}deg);">
+              <div class="w-9 h-9 rounded-full bg-slate-900 border-2 text-white font-black text-xs flex items-center justify-center shadow-xl cursor-pointer transition-transform hover:scale-125" style="border-color: ${haloColor}; box-shadow: 0 0 10px ${haloColor}80;">
+                <span class="text-[10px] text-red-500 font-extrabold">${v.routeCode}</span>
+              </div>
+            </div>
+          `;
+
+          const icon = L.divIcon({
+            className: 'custom-bus-icon',
+            html: busIconHtml,
+            iconSize: [36, 36],
+            iconAnchor: [18, 18]
+          });
+
+          const tooltipHtml = `
+            <div class="text-xs p-1">
+              <div class="font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5">
+                <span class="px-1.5 py-0.5 rounded bg-errared text-white text-[10px] font-black">${v.routeCode}</span>
+                <span>${v.reg}</span>
+              </div>
+              <div class="text-[11px] text-slate-600 dark:text-slate-300 font-semibold mt-0.5">${route.name}</div>
+              <div class="mt-1 pt-1 border-t border-slate-200 dark:border-slate-700 flex items-center gap-2">
+                <span class="text-emerald-600 dark:text-emerald-400 font-black">${etaMins} mins ETA</span>
+                <span class="text-slate-400">•</span>
+                <span class="font-bold text-slate-700 dark:text-slate-200">${distKm.toFixed(1)} km</span>
+                <span class="text-slate-400">•</span>
+                <span class="text-slate-500">${v.speed} km/h</span>
+              </div>
+              ${isInsideRadius ? '<span class="inline-block mt-1 text-[9px] font-black text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded">Inside ' + this.radiusFilterKm + ' km Radius</span>' : ''}
+            </div>
+          `;
+
+          if (this.leafletMarkers[v.id]) {
+            this.leafletMarkers[v.id].setLatLng([v.lat, v.lng]);
+            this.leafletMarkers[v.id].setIcon(icon);
+            this.leafletMarkers[v.id].setTooltipContent(tooltipHtml);
+          } else {
+            const marker = L.marker([v.lat, v.lng], { icon: icon }).addTo(this.leafletMap);
+            marker.bindTooltip(tooltipHtml, { direction: 'top', offset: [0, -18], sticky: true });
+            marker.on('click', () => this.openBusBottomSheet(v.id));
+            this.leafletMarkers[v.id] = marker;
+          }
+        });
+
+        // If camera locked on bus, follow bus with smooth animation
+        if (this.cameraLockedBusId) {
+          const lockedVehicle = this.vehicles.find(v => v.id === this.cameraLockedBusId);
+          if (lockedVehicle) {
+            this.leafletMap.panTo([lockedVehicle.lat, lockedVehicle.lng], { animate: true, duration: 0.8 });
+            const etaBadge = document.getElementById('lbl-locked-bus-eta');
+            if (etaBadge && lockedVehicle.etaMins) {
+              etaBadge.innerText = `${lockedVehicle.etaMins} mins ETA • ${lockedVehicle.distKm.toFixed(1)} km away`;
+            }
+          }
+        }
+
+        // Live in-place update for bottom sheet if open
+        if (this.selectedSheetBusId) {
+          const activeVehicle = this.vehicles.find(v => v.id === this.selectedSheetBusId);
+          if (activeVehicle) {
+            const elEta = document.getElementById('sheet-eta');
+            if (elEta && activeVehicle.etaMins) {
+              elEta.innerHTML = activeVehicle.etaMins <= 4
+                ? `<span class="text-emerald-500 font-extrabold animate-pulse">${activeVehicle.etaMins} mins (Arriving)</span>`
+                : `${activeVehicle.etaMins} mins`;
+            }
+            const elDist = document.getElementById('sheet-dist');
+            if (elDist && activeVehicle.distKm !== undefined) {
+              elDist.innerText = `${activeVehicle.distKm.toFixed(1)} km`;
+            }
+            const elSpeed = document.getElementById('sheet-speed');
+            if (elSpeed) {
+              elSpeed.innerText = `${activeVehicle.speed} km/h • ${activeVehicle.occupancy}%`;
+            }
+          }
+        }
+      }
+
+      openBusBottomSheet(busId) {
+        const vehicle = this.vehicles.find(v => v.id === busId);
+        if (!vehicle) return;
+
+        this.selectedSheetBusId = busId;
+        const route = ROUTES_DATABASE[vehicle.routeCode];
+        if (!route) return;
+
+        // Determine reference point: real GPS first, fallback to selected hub
+        let refLat, refLng;
+        if (this.gpsMode && this.userLat !== null && this.userLng !== null) {
+          refLat  = this.userLat;
+          refLng  = this.userLng;
+        } else {
+          const userStop = STOPS_DATABASE[this.userLocationKey];
+          if (userStop) {
+            refLat  = userStop.lat;
+            refLng  = userStop.lng;
+          }
+        }
+
+        let dist = vehicle.distKm || 0;
+        let etaMins = vehicle.etaMins || 1;
+        if (refLat && refLng) {
+          dist = this.calculateDistance(refLat, refLng, vehicle.lat, vehicle.lng);
+          etaMins = Math.max(1, Math.round((dist / Math.max(vehicle.speed, 18)) * 60));
+        }
+
+        const nextStopKey = route.stops[vehicle.currentStopIndex + 1] || route.stops[0];
+        const nextStopObj = STOPS_DATABASE[nextStopKey] || STOPS_DATABASE['krmarket'];
+
+        document.getElementById('sheet-route-code').innerText = vehicle.routeCode;
+        document.getElementById('sheet-bus-reg').innerText = vehicle.reg;
+        document.getElementById('sheet-bus-type-badge').innerText = vehicle.type;
+        document.getElementById('sheet-bus-destination').innerHTML = `${route.origin} <i class="fa-solid fa-arrow-right text-[10px] mx-1"></i> ${route.destination}`;
+        
+        const elEta = document.getElementById('sheet-eta');
+        if (elEta) {
+          elEta.innerHTML = etaMins <= 4
+            ? `<span class="text-emerald-500 font-extrabold animate-pulse">${etaMins} mins (Arriving)</span>`
+            : `${etaMins} mins`;
+        }
+
+        const elDist = document.getElementById('sheet-dist');
+        if (elDist) {
+          elDist.innerText = `${dist.toFixed(1)} km`;
+        }
+
+        const elSpeed = document.getElementById('sheet-speed');
+        if (elSpeed) {
+          elSpeed.innerText = `${vehicle.speed} km/h • ${vehicle.occupancy}%`;
+        }
+
+        const elNextStop = document.getElementById('sheet-next-stop');
+        if (elNextStop) {
+          elNextStop.innerText = nextStopObj.name;
+        }
+
+        document.getElementById('sheet-bus-telemetry').classList.remove('hidden');
+      }
+
+      closeBottomSheet() {
+        this.selectedSheetBusId = null;
+        this.mapStyle = 'streets';
+        document.getElementById('sheet-bus-telemetry').classList.add('hidden');
+      }
+
+      lockCameraOnBus(busId) {
+        this.cameraLockedBusId = busId;
+        const v = this.vehicles.find(veh => veh.id === busId);
+        const label = v ? `Route ${v.routeCode} (${v.reg})` : busId;
+        document.getElementById('lbl-locked-bus-id').innerText = label;
+        document.getElementById('banner-tracking-lock').classList.remove('hidden');
+        this.switchTab('map');
+        if (v && this.leafletMap) {
+          this.leafletMap.setView([v.lat, v.lng], 15, { animate: true });
+          this.openBusBottomSheet(busId);
+        }
+      }
+
+      unlockCamera() {
+        this.cameraLockedBusId = null;
+        document.getElementById('banner-tracking-lock').classList.add('hidden');
+      }
+
+      recenterMap() {
+        if (!this.leafletMap) return;
+        let lat, lng;
+        if (this.gpsMode && this.userLat !== null && this.userLng !== null) {
+          lat = this.userLat;
+          lng = this.userLng;
+        } else {
+          const userStop = STOPS_DATABASE[this.userLocationKey];
+          if (userStop) {
+            lat = userStop.lat;
+            lng = userStop.lng;
+          }
+        }
+        if (lat && lng) {
+          this.leafletMap.setView([lat, lng], 14, { animate: true });
+        }
+      }
+
+      viewSelectedRouteOnMap() {
+        const route = ROUTES_DATABASE[this.selectedRouteCode];
+        if (!route) return;
+
+        this.switchTab('map');
+
+        if (this.highlightedRouteLayer && this.leafletMap) {
+          this.leafletMap.removeLayer(this.highlightedRouteLayer);
+        }
+
+        const coords = route.stops.map(sId => [STOPS_DATABASE[sId].lat, STOPS_DATABASE[sId].lng]);
+        this.highlightedRouteLayer = L.polyline(coords, {
+          color: '#C8232C',
+          weight: 6,
+          opacity: 0.95
+        }).addTo(this.leafletMap);
+
+        this.leafletMap.fitBounds(this.highlightedRouteLayer.getBounds(), { padding: [40, 40] });
+
+        document.getElementById('lbl-tracked-route-code').innerText = route.code;
+        document.getElementById('lbl-tracked-route-name').innerText = route.name;
+        document.getElementById('banner-active-route').classList.remove('hidden');
+      }
+
+      clearMapRouteHighlight() {
+        if (this.highlightedRouteLayer && this.leafletMap) {
+          this.leafletMap.removeLayer(this.highlightedRouteLayer);
+          this.highlightedRouteLayer = null;
+        }
+        document.getElementById('banner-active-route').classList.add('hidden');
+      }
+
+      switchTab(tabId) {
+        this.activeTab = tabId;
+
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+        const targetView = document.getElementById(`view-${tabId}`);
+        if (targetView) targetView.classList.remove('hidden');
+
+        document.querySelectorAll('.nav-btn').forEach(btn => {
+          btn.classList.remove('bg-errared', 'text-white', 'shadow-sm');
+          btn.classList.add('text-slate-600', 'dark:text-slate-300');
+        });
+
+        const activeBtn = document.getElementById(`tab-${tabId}`);
+        if (activeBtn) {
+          activeBtn.classList.add('bg-errared', 'text-white', 'shadow-sm');
+          activeBtn.classList.remove('text-slate-600', 'dark:text-slate-300');
+        }
+
+        document.querySelectorAll('.mob-nav-btn').forEach(btn => {
+          btn.classList.remove('text-errared');
+          btn.classList.add('text-slate-400');
+        });
+        const mobBtn = document.getElementById(`mob-tab-${tabId}`);
+        if (mobBtn) {
+          mobBtn.classList.add('text-errared');
+          mobBtn.classList.remove('text-slate-400');
+        }
+
+        if (tabId === 'map') {
+          if (!this.leafletMap) {
+            this.initLeafletMap();
+          }
+          if (this.leafletMap) {
+            this.leafletMap.invalidateSize();
+            requestAnimationFrame(() => {
+              if (this.leafletMap) this.leafletMap.invalidateSize();
+            });
+            setTimeout(() => {
+              if (this.leafletMap) this.leafletMap.invalidateSize();
+            }, 80);
+          }
+        }
+      }
+
+      calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+      }
+
+      changeUserLocation(hubKey) {
+        this.userLocationKey = hubKey;
+        const stop = STOPS_DATABASE[hubKey];
+        if (!stop) return;
+
+        document.getElementById('lbl-user-location').innerText = stop.name;
+        const selHub = document.getElementById('select-location-hub');
+        if (selHub) selHub.value = hubKey;
+
+        if (this.leafletMap && this.userMarker) {
+          this.userMarker.setLatLng([stop.lat, stop.lng]);
+          this.radiusCircle.setLatLng([stop.lat, stop.lng]);
+          this.leafletMap.panTo([stop.lat, stop.lng]);
+        }
+
+        this.renderNearbyBuses(true);
+      }
+
+      setRadiusFilter(km) {
+        this.radiusFilterKm = km;
+        document.querySelectorAll('.btn-radius').forEach(btn => {
+          const r = parseInt(btn.getAttribute('data-radius'));
+          if (r === km) {
+            btn.classList.add('bg-errared', 'text-white', 'shadow-sm');
+            btn.classList.remove('bg-slate-100', 'dark:bg-slate-800', 'text-slate-700', 'dark:text-slate-300');
+          } else {
+            btn.classList.remove('bg-errared', 'text-white', 'shadow-sm');
+            btn.classList.add('bg-slate-100', 'dark:bg-slate-800', 'text-slate-700', 'dark:text-slate-300');
+          }
+        });
+
+        if (this.radiusCircle) {
+          this.radiusCircle.setRadius(km * 1000);
+        }
+
+        this.renderNearbyBuses(true);
+      }
+
+      applyFilters() {
+        this.busTypeFilter = document.getElementById('filter-bus-type').value;
+        this.statusFilter = document.getElementById('filter-status').value;
+        this.renderNearbyBuses(true);
+      }
+
+      // Live Buses Feed: Displays active buses in strict chronological arrival order within distance radius
+      renderNearbyBuses(forceRerender = false) {
+        const container = document.getElementById('container-bus-list');
+        if (!container) return;
+
+        // Determine reference point: real GPS location first, fallback to selected hub
+        let refLat, refLng, refName;
+        if (this.gpsMode && this.userLat !== null && this.userLng !== null) {
+          refLat  = this.userLat;
+          refLng  = this.userLng;
+          refName = 'Your Location';
+        } else {
+          const userStop = STOPS_DATABASE[this.userLocationKey];
+          if (!userStop) return;
+          refLat  = userStop.lat;
+          refLng  = userStop.lng;
+          refName = userStop.name;
+        }
+
+        // Update location label with ref name when in hub mode
+        if (!this.gpsMode) {
+          const lbl = document.getElementById('lbl-user-location');
+          const userStop = STOPS_DATABASE[this.userLocationKey];
+          if (lbl && userStop) lbl.textContent = userStop.name;
+        }
+
+        // Strict radius filter: only buses currently within the selected radius
+        const nearbyVehicles = [];
+        for (const v of this.vehicles) {
+          const dist = this.calculateDistance(refLat, refLng, v.lat, v.lng);
+          v.distKm = dist;
+
+          // If bus is strictly within the radius
+          if (dist <= this.radiusFilterKm) {
+            if (this.busTypeFilter !== 'ALL' && v.type !== this.busTypeFilter) continue;
+            if (this.statusFilter !== 'ALL' && v.status !== this.statusFilter) continue;
+
+            // Chronological ETA calculation: arrival time in minutes
+            v.etaMins = Math.max(1, Math.round((dist / Math.max(v.speed, 18)) * 60));
+            nearbyVehicles.push(v);
+          }
+        }
+
+        // STABLE CHRONOLOGICAL ORDER:
+        // Primary: Estimated Arrival Time (etaMins ascending - earliest arriving bus first)
+        // Secondary: Deterministic tie-breaker (route code, vehicle ID)
+        // This ensures the list does NOT shuffle back and forth every second!
+        nearbyVehicles.sort((a, b) => {
+          if (a.etaMins !== b.etaMins) {
+            return a.etaMins - b.etaMins;
+          }
+          const codeA = parseInt(a.routeCode) || 9999;
+          const codeB = parseInt(b.routeCode) || 9999;
+          if (codeA !== codeB) return codeA - codeB;
+          return a.id.localeCompare(b.id);
+        });
+
+        // Update active count badge
+        const badgeCount = document.getElementById('badge-bus-count');
+        if (badgeCount) {
+          badgeCount.innerText = `${nearbyVehicles.length} active within ${this.radiusFilterKm} km`;
+        }
+
+        // Empty state: no buses inside current radius
+        if (nearbyVehicles.length === 0) {
+          this.currentRenderedNearbyIds = [];
+          container.innerHTML = `
+            <div class="text-center py-10 px-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+              <i class="fa-solid fa-radar text-4xl mb-3 text-slate-300 dark:text-slate-600"></i>
+              <h4 class="text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">No Buses Within ${this.radiusFilterKm} km Radius</h4>
+              <p class="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto mb-4">
+                No active transit vehicles are currently inside your ${this.radiusFilterKm} km search radius around ${refName}.
+              </p>
+              <div class="flex justify-center items-center gap-2">
+                <button onclick="app.setRadiusFilter(5)" class="px-3.5 py-1.5 bg-errared text-white text-xs font-bold rounded-xl shadow-sm hover:bg-errared-600 transition">
+                  Expand Radius to 5 km
+                </button>
+                <button onclick="app.setRadiusFilter(10)" class="px-3.5 py-1.5 bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-xl hover:bg-slate-300 dark:hover:bg-slate-700 transition">
+                  Expand to 10 km
+                </button>
+              </div>
+            </div>
+          `;
+          return;
+        }
+
+        // Check if the set of bus IDs or their sequence rank has changed
+        const currentIds = nearbyVehicles.map(v => v.id);
+        const prevIds = this.currentRenderedNearbyIds || [];
+        const isIdentical = !forceRerender &&
+                            currentIds.length === prevIds.length &&
+                            currentIds.every((id, idx) => id === prevIds[idx]);
+
+        // If the same buses are inside the radius in stable sequence:
+        // DO NOT wipe the DOM! Update the live numbers in-place to stop shuffling/flickering!
+        if (isIdentical) {
+          nearbyVehicles.forEach((v, idx) => {
+            const cardEl = document.getElementById(`live-bus-card-${v.id}`);
+            if (!cardEl) return;
+
+            // In-place ETA update
+            const etaEl = document.getElementById(`live-eta-${v.id}`);
+            if (etaEl) {
+              etaEl.innerHTML = v.etaMins <= 4
+                ? `<span class="bg-emerald-500 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full animate-pulse shadow-sm flex items-center gap-1"><i class="fa-solid fa-bolt text-[9px]"></i> Approaching (${v.etaMins} mins)</span>`
+                : `<span class="text-sm font-black text-emerald-600 dark:text-emerald-400 font-mono">${v.etaMins} mins ETA</span>`;
+            }
+
+            // In-place distance update
+            const distEl = document.getElementById(`live-dist-${v.id}`);
+            if (distEl) {
+              distEl.innerText = `${v.distKm.toFixed(1)} km away`;
+            }
+
+            // In-place speed update
+            const speedEl = document.getElementById(`live-speed-${v.id}`);
+            if (speedEl) {
+              speedEl.innerText = `${v.speed} km/h`;
+            }
+
+            // In-place occupancy update
+            const occEl = document.getElementById(`live-occ-${v.id}`);
+            if (occEl) {
+              occEl.innerText = `${v.occupancy}% full`;
+            }
+
+            // In-place rank update
+            const rankEl = document.getElementById(`live-rank-${v.id}`);
+            if (rankEl) {
+              rankEl.innerText = `#${idx + 1} Arrival`;
+            }
+          });
+          return;
+        }
+
+        // If buses entered/exited the radius or filter changed: full structured chronological rebuild
+        this.currentRenderedNearbyIds = currentIds;
+
+        container.innerHTML = nearbyVehicles.map((v, idx) => {
+          const route = ROUTES_DATABASE[v.routeCode] || { name: 'CITY SERVICE', fare: 20, destination: 'Vijayawada' };
+          const distFormatted = v.distKm.toFixed(1);
+
+          const etaBadge = v.etaMins <= 4
+            ? `<span class="bg-emerald-500 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full animate-pulse shadow-sm flex items-center gap-1"><i class="fa-solid fa-bolt text-[9px]"></i> Approaching (${v.etaMins} mins)</span>`
+            : `<span class="text-sm font-black text-emerald-600 dark:text-emerald-400 font-mono">${v.etaMins} mins ETA</span>`;
+
+          const routeBadgeBg = route.category === 'Suburban Metro' ? 'bg-emerald-600' : 'bg-errared';
+
+          return `
+            <div id="live-bus-card-${v.id}" class="bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 rounded-2xl p-4 hover:border-errared transition shadow-sm">
+              <div class="flex items-start justify-between gap-3">
+                
+                <div class="flex items-start space-x-3">
+                  <div class="w-12 h-12 rounded-xl ${routeBadgeBg} text-white font-black flex flex-col items-center justify-center shadow-sm shrink-0 mt-0.5">
+                    <span class="text-sm font-black">${v.routeCode}</span>
+                    <span class="text-[8px] uppercase tracking-tighter opacity-80">${route.category === 'City' ? 'CITY' : 'SUBURB'}</span>
+                  </div>
+                  <div>
+                    <div class="flex items-center space-x-2 flex-wrap gap-y-1">
+                      <span class="text-sm font-extrabold text-slate-900 dark:text-white">${v.reg}</span>
+                      <span class="bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-extrabold px-2 py-0.5 rounded-full">${v.type}</span>
+                      <span class="text-[10px] font-bold ${v.status === 'Delayed' ? 'text-amber-500 bg-amber-500/10' : 'text-emerald-500 bg-emerald-500/10'} px-1.5 py-0.5 rounded">${v.status}</span>
+                    </div>
+                    <h4 class="text-xs font-black text-slate-800 dark:text-slate-100 mt-1 uppercase tracking-tight">${route.name}</h4>
+                    <p class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5">
+                      <i class="fa-solid fa-arrow-turn-down-right text-[10px] text-errablue mr-1"></i> Towards <strong class="text-slate-800 dark:text-slate-200">${route.destination}</strong>
+                    </p>
+                  </div>
+                </div>
+
+                <div class="text-right shrink-0">
+                  <div class="flex items-center justify-end space-x-1.5 mb-1">
+                    <span id="live-rank-${v.id}" class="bg-slate-100 dark:bg-slate-700/60 text-slate-700 dark:text-slate-300 text-[10px] font-black px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-600">#${idx + 1} Arrival</span>
+                  </div>
+                  <div id="live-eta-${v.id}">${etaBadge}</div>
+                  <div id="live-dist-${v.id}" class="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-1">${distFormatted} km away</div>
+                </div>
+
+              </div>
+
+              <div class="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs bus-card-actions">
+                <div class="flex items-center flex-wrap gap-x-3 gap-y-1 text-slate-600 dark:text-slate-300 font-medium bus-card-stats">
+                  <span><i class="fa-solid fa-gauge-high mr-1 text-slate-400"></i> <span id="live-speed-${v.id}">${v.speed} km/h</span></span>
+                  <span><i class="fa-solid fa-users mr-1 text-slate-400"></i> <span id="live-occ-${v.id}">${v.occupancy}% full</span></span>
+                  <span><i class="fa-solid fa-indian-rupee-sign mr-0.5 text-slate-400"></i> Fare ₹${route.fare}</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                  <button onclick="app.selectAndOpenRoute('${v.routeCode}')" class="text-xs font-bold text-slate-700 dark:text-slate-200 hover:text-errared px-2 py-1">
+                    Route Info
+                  </button>
+                  <button onclick="app.lockCameraOnBus('${v.id}')" class="bg-errared text-white font-extrabold px-3 py-1 rounded-lg hover:bg-errared-600 transition text-[11px] shadow-sm">
+                    <i class="fa-solid fa-crosshairs mr-1"></i> Track
+                  </button>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      solveJourney() {
+        const originKey = document.getElementById('select-planner-origin').value;
+        const destKey = document.getElementById('select-planner-destination').value;
+        const container = document.getElementById('container-planner-results');
+
+        if (originKey === destKey) {
+          container.innerHTML = `
+            <div class="p-4 bg-amber-500/10 border border-amber-500/30 text-amber-600 rounded-xl text-xs font-semibold text-center">
+              Origin and Destination cannot be identical. Please choose distinct terminals.
+            </div>
+          `;
+          return;
+        }
+
+        const directRoutes = [];
+        Object.values(ROUTES_DATABASE).forEach(route => {
+          if (route.stops.includes(originKey) && route.stops.includes(destKey)) {
+            const idx1 = route.stops.indexOf(originKey);
+            const idx2 = route.stops.indexOf(destKey);
+            directRoutes.push({
+              route: route,
+              direction: idx1 < idx2 ? 'Forward' : 'Return',
+              hops: Math.abs(idx2 - idx1)
+            });
+          }
+        });
+
+        if (directRoutes.length > 0) {
+          container.innerHTML = `
+            <div class="text-xs font-extrabold text-emerald-600 dark:text-emerald-400 mb-2 flex items-center">
+              <i class="fa-solid fa-circle-check mr-1.5"></i>
+              <span>Found ${directRoutes.length} Direct APSRTC Route(s) Connecting Terminals</span>
+            </div>
+          ` + directRoutes.map(item => {
+            const r = item.route;
+            return `
+              <div class="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-4 shadow-sm hover:border-errared transition">
+                <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-3 mb-3">
+                  <div class="flex items-center space-x-2.5">
+                    <span class="w-9 h-9 rounded-xl bg-errared text-white font-black flex items-center justify-center text-xs shadow-sm">${r.code}</span>
+                    <div>
+                      <h4 class="text-sm font-extrabold text-slate-900 dark:text-white uppercase">${r.name}</h4>
+                      <div class="flex items-center space-x-1.5 mt-0.5">
+                        <span class="text-[10px] font-bold text-blue-500 bg-blue-500/10 px-2 py-0.5 rounded-full">${r.type}</span>
+                        <span class="text-[10px] font-bold text-slate-400">• ${r.category}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="text-right">
+                    <span class="text-base font-black text-emerald-600 dark:text-emerald-400">₹${r.fare}</span>
+                    <span class="block text-[10px] text-slate-400">Standard APSRTC Fare</span>
+                  </div>
+                </div>
+
+                <div class="flex justify-between items-center text-xs text-slate-600 dark:text-slate-300">
+                  <div><i class="fa-solid fa-stopwatch text-errared mr-1"></i> Approx Duration: ${r.durationMins} mins</div>
+                  <div><i class="fa-solid fa-arrows-split-up-and-left text-errablue mr-1"></i> ${item.direction} Trip (${item.hops} intermediate stops)</div>
+                  <button onclick="app.selectAndOpenRoute('${r.code}')" class="bg-slate-100 dark:bg-slate-700 hover:border-errared hover:text-errared border border-slate-300 dark:border-slate-600 text-slate-800 dark:text-white font-bold px-3 py-1 rounded-lg text-xs transition">
+                    View Full Route
+                  </button>
+                </div>
+              </div>
+            `;
+          }).join('');
+          return;
+        }
+
+        const exchangeHubs = ['krmarket', 'pnbs', 'benzcircle', 'railwaystn', 'ramavarappadu'];
+        let transferSolution = null;
+
+        for (const hub of exchangeHubs) {
+          if (hub === originKey || hub === destKey) continue;
+
+          const leg1Routes = Object.values(ROUTES_DATABASE).filter(r => r.stops.includes(originKey) && r.stops.includes(hub));
+          const leg2Routes = Object.values(ROUTES_DATABASE).filter(r => r.stops.includes(hub) && r.stops.includes(destKey));
+
+          if (leg1Routes.length > 0 && leg2Routes.length > 0) {
+            transferSolution = {
+              hub: STOPS_DATABASE[hub],
+              leg1: leg1Routes[0],
+              leg2: leg2Routes[0],
+              totalFare: leg1Routes[0].fare + leg2Routes[0].fare,
+              estDuration: leg1Routes[0].durationMins + leg2Routes[0].durationMins + 12
+            };
+            break;
+          }
+        }
+
+        if (transferSolution) {
+          container.innerHTML = `
+            <div class="p-5 bg-slate-100 dark:bg-slate-800 rounded-xl">
+              <div class="flex items-center space-x-2 text-errablue font-extrabold text-sm mb-3">
+                <i class="fa-solid fa-shuffle text-lg"></i>
+                <span>Optimal Transfer Recommended via ${transferSolution.hub.name}</span>
+              </div>
+
+              <div class="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 mb-2">
+                <div class="flex justify-between items-center text-xs">
+                  <span class="font-extrabold text-slate-800 dark:text-slate-200">1. Board Route ${transferSolution.leg1.code} (${transferSolution.leg1.name})</span>
+                  <span class="text-emerald-500 font-bold">₹${transferSolution.leg1.fare}</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">Travel from ${STOPS_DATABASE[originKey].name} to ${transferSolution.hub.name}</p>
+              </div>
+
+              <div class="py-1 px-4 text-xs font-bold text-amber-500 flex items-center">
+                <i class="fa-solid fa-arrow-down mr-2"></i> Transfer at ${transferSolution.hub.name} (Avg Wait: 8-12 mins)
+              </div>
+
+              <div class="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
+                <div class="flex justify-between items-center text-xs">
+                  <span class="font-extrabold text-slate-800 dark:text-slate-200">2. Transfer to Route ${transferSolution.leg2.code} (${transferSolution.leg2.name})</span>
+                  <span class="text-emerald-500 font-bold">₹${transferSolution.leg2.fare}</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">Alight at final destination ${STOPS_DATABASE[destKey].name}</p>
+              </div>
+
+              <div class="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 flex justify-between text-xs font-extrabold text-slate-700 dark:text-slate-300">
+                <span>Total Estimated Fare: ₹${transferSolution.totalFare}</span>
+                <span>Total Travel Time: ~${transferSolution.estDuration} mins</span>
+              </div>
+            </div>
+          `;
+        } else {
+          container.innerHTML = `
+            <div class="p-6 bg-slate-100 dark:bg-slate-800 rounded-xl text-center">
+              <i class="fa-solid fa-circle-question text-3xl text-slate-400 mb-2"></i>
+              <h4 class="text-sm font-bold text-slate-800 dark:text-slate-200">No Direct Route Found</h4>
+              <p class="text-xs text-slate-500 mt-1">Take any feeder bus to Kaleswara Rao Market or PNBS Central Bus Station to connect easily.</p>
+            </div>
+          `;
+        }
+      }
+
+      swapPlannerLocations() {
+        const orig = document.getElementById('select-planner-origin');
+        const dest = document.getElementById('select-planner-destination');
+        const temp = orig.value;
+        orig.value = dest.value;
+        dest.value = temp;
+        this.solveJourney();
+      }
+
+      planJourneyWithCurrentRoute() {
+        const route = ROUTES_DATABASE[this.selectedRouteCode];
+        if (!route) return;
+
+        this.switchTab('planner');
+        const orig = document.getElementById('select-planner-origin');
+        const dest = document.getElementById('select-planner-destination');
+        if (orig && dest && route.stops.length >= 2) {
+          orig.value = route.stops[0];
+          dest.value = route.stops[route.stops.length - 1];
+          this.solveJourney();
+        }
+      }
+
+      setRouteCategoryFilter(cat) {
+        this.routeCategoryFilter = cat;
+
+        document.querySelectorAll('.route-cat-btn').forEach(btn => {
+          btn.classList.remove('bg-errared', 'text-white', 'shadow-sm');
+          btn.classList.add('text-slate-700', 'dark:text-slate-200');
+        });
+
+        const activeId = cat === 'ALL' ? 'filter-btn-all' : (cat === 'City' ? 'filter-btn-city' : 'filter-btn-suburban');
+        const activeBtn = document.getElementById(activeId);
+        if (activeBtn) {
+          activeBtn.classList.add('bg-errared', 'text-white', 'shadow-sm');
+          activeBtn.classList.remove('text-slate-700', 'dark:text-slate-200');
+        }
+
+        this.renderRouteDirectory();
+      }
+
+      filterRouteList(query) {
+        this.routeSearchQuery = query.trim().toLowerCase();
+        const clearBtn = document.getElementById('btn-clear-route-filter');
+        if (this.routeSearchQuery) {
+          clearBtn.classList.remove('hidden');
+        } else {
+          clearBtn.classList.add('hidden');
+        }
+        this.renderRouteDirectory();
+      }
+
+      clearRouteListFilter() {
+        document.getElementById('input-filter-routes').value = '';
+        this.routeSearchQuery = '';
+        document.getElementById('btn-clear-route-filter').classList.add('hidden');
+        this.renderRouteDirectory();
+      }
+
+      renderRouteDirectory() {
+        const container = document.getElementById('container-route-selector');
+        if (!container) return;
+
+        let routes = Object.values(ROUTES_DATABASE);
+
+        if (this.routeCategoryFilter !== 'ALL') {
+          routes = routes.filter(r => r.category === this.routeCategoryFilter);
+        }
+
+        if (this.routeSearchQuery) {
+          const q = this.routeSearchQuery;
+          routes = routes.filter(r => 
+            r.code.toLowerCase().includes(q) ||
+            r.name.toLowerCase().includes(q) ||
+            r.origin.toLowerCase().includes(q) ||
+            r.destination.toLowerCase().includes(q) ||
+            (r.via && r.via.toLowerCase().includes(q))
+          );
+        }
+
+        document.getElementById('badge-total-routes-count').innerText = `${routes.length} Routes`;
+
+        if (routes.length === 0) {
+          container.innerHTML = `
+            <div class="text-center py-8 text-slate-400">
+              <i class="fa-solid fa-magnifying-glass text-2xl mb-2 opacity-50"></i>
+              <p class="text-xs font-semibold">No matching routes found.</p>
+            </div>
+          `;
+          return;
+        }
+
+        if (!ROUTES_DATABASE[this.selectedRouteCode]) {
+          this.selectedRouteCode = routes[0].code;
+        }
+
+        container.innerHTML = routes.map(r => {
+          const isSelected = r.code === this.selectedRouteCode;
+          const badgeBg = r.category === 'Suburban Metro' ? 'bg-emerald-600' : 'bg-errared';
+
+          const cardClasses = isSelected
+            ? 'border-errared bg-red-50/70 dark:bg-red-950/40 text-slate-900 dark:text-white ring-1 ring-errared shadow-sm'
+            : 'border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-800/80 hover:border-errared/70 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-900 dark:text-slate-100';
+
+          return `
+            <button onclick="app.selectRoute('${r.code}')" id="route-card-${r.code}" class="w-full text-left p-3 rounded-xl border transition ${cardClasses}">
+              <div class="flex items-start justify-between gap-2 mb-1.5">
+                <div class="flex items-start space-x-2.5">
+                  <span class="w-8 h-8 rounded-lg ${badgeBg} text-white text-xs font-black flex items-center justify-center shadow-sm shrink-0 mt-0.5">${r.code}</span>
+                  <div>
+                    <span class="text-xs font-black block leading-tight text-slate-900 dark:text-white uppercase">${r.name}</span>
+                    ${r.via ? `<span class="text-[10px] font-bold text-slate-500 dark:text-slate-300 block mt-0.5">VIA ${r.via.toUpperCase()}</span>` : ''}
+                  </div>
+                </div>
+                <div class="text-right shrink-0">
+                  <span class="text-xs font-black text-emerald-600 dark:text-emerald-400 block">₹${r.fare}</span>
+                  <span class="text-[10px] font-bold text-slate-500 dark:text-slate-400 block">${r.distanceKm} km</span>
+                </div>
+              </div>
+              <div class="flex items-center justify-between text-[10px] font-bold pt-1.5 border-t border-slate-200/60 dark:border-slate-700/60 text-slate-600 dark:text-slate-300">
+                <span>${r.type}</span>
+                <span class="${r.category === 'City' ? 'text-blue-600 dark:text-blue-400' : 'text-emerald-600 dark:text-emerald-400'} uppercase font-black">${r.category}</span>
+              </div>
+            </button>
+          `;
+        }).join('');
+
+        this.renderRouteDetails();
+      }
+
+      selectRoute(code) {
+        this.selectedRouteCode = code;
+        this.routeDirectionForward = true;
+        this.renderRouteDirectory();
+      }
+
+      selectAndOpenRoute(code) {
+        this.selectedRouteCode = code;
+        this.routeDirectionForward = true;
+        this.switchTab('routes');
+        this.renderRouteDirectory();
+
+        setTimeout(() => {
+          const btn = document.getElementById(`route-card-${code}`);
+          if (btn) btn.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 150);
+      }
+
+      toggleRouteDirection() {
+        this.routeDirectionForward = !this.routeDirectionForward;
+        this.renderRouteDetails();
+      }
+
+      renderRouteDetails() {
+        const route = ROUTES_DATABASE[this.selectedRouteCode];
+        if (!route) return;
+
+        document.getElementById('lbl-route-badge').innerText = `ROUTE ${route.code}`;
+        document.getElementById('lbl-route-badge').style.backgroundColor = route.color;
+        document.getElementById('lbl-route-category').innerText = route.type;
+        
+        const terminalsDisplay = this.routeDirectionForward 
+          ? `${route.origin.toUpperCase()} TO ${route.destination.toUpperCase()}`
+          : `${route.destination.toUpperCase()} TO ${route.origin.toUpperCase()}`;
+        
+        document.getElementById('lbl-route-title').innerText = terminalsDisplay;
+
+        const viaEl = document.getElementById('lbl-route-via-pill');
+        if (route.via) {
+          viaEl.innerText = `VIA ${route.via.toUpperCase()}`;
+          viaEl.classList.remove('hidden');
+        } else {
+          viaEl.classList.add('hidden');
+        }
+
+        document.getElementById('lbl-route-te-title').innerText = route.teName;
+
+        document.getElementById('lbl-route-fare').innerText = `₹${route.fare}`;
+        document.getElementById('lbl-route-distance').innerText = `${route.distanceKm} km`;
+        document.getElementById('lbl-route-duration').innerText = `~${route.durationMins} mins`;
+        document.getElementById('lbl-route-frequency').innerText = route.frequency;
+
+        document.getElementById('btn-direction-label').innerText = this.routeDirectionForward ? 'Invert Direction' : 'Normal Direction';
+
+        const stops = this.routeDirectionForward ? route.stops : [...route.stops].reverse();
+        document.getElementById('lbl-route-stops-count').innerText = `${stops.length} Stops Sequence`;
+
+        const container = document.getElementById('container-stop-timeline');
+        if (!container) return;
+
+        container.innerHTML = stops.map((sKey, idx) => {
+          const stop = STOPS_DATABASE[sKey] || { name: sKey, teName: sKey, isMajorHub: false };
+          const isFirst = idx === 0;
+          const isLast = idx === stops.length - 1;
+          const estMins = Math.round((idx / (stops.length - 1 || 1)) * route.durationMins);
+
+          const dotColor = isFirst ? 'bg-emerald-500 ring-4 ring-emerald-500/20' : (isLast ? 'bg-errared ring-4 ring-errared/20' : 'bg-slate-400 dark:bg-slate-600');
+
+          return `
+            <div class="flex items-start space-x-3 relative group">
+              <div class="flex flex-col items-center">
+                <div class="w-7 h-7 rounded-full ${dotColor} text-white text-[11px] font-black flex items-center justify-center shadow-sm z-10">
+                  ${idx + 1}
+                </div>
+                ${!isLast ? '<div class="w-0.5 h-10 bg-slate-200 dark:bg-slate-700 my-0.5"></div>' : ''}
+              </div>
+              <div class="flex-1 pb-3">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <h4 class="text-xs font-black text-slate-900 dark:text-slate-100 flex items-center space-x-1.5">
+                      <span>${this.currentLang === 'te' ? stop.teName : stop.name}</span>
+                      ${stop.isMajorHub ? '<span class="bg-amber-500/10 text-amber-600 text-[9px] font-bold px-1.5 py-0.2 rounded">Major Hub</span>' : ''}
+                    </h4>
+                    <p class="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">${this.currentLang === 'te' ? stop.name : stop.teName}</p>
+                  </div>
+                  <div class="text-right">
+                    <span class="text-[11px] font-bold text-slate-600 dark:text-slate-300">+${estMins} mins</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      handleSearchInput(val) {
+        const dropdown = document.getElementById('dropdown-search-results');
+        const clearBtn = document.getElementById('btn-clear-search');
+
+        if (!val.trim()) {
+          dropdown.classList.add('hidden');
+          clearBtn.classList.add('hidden');
+          return;
+        }
+
+        clearBtn.classList.remove('hidden');
+        const query = val.toLowerCase().trim();
+
+        const matchedRoutes = Object.values(ROUTES_DATABASE).filter(r => 
+          r.code.toLowerCase().startsWith(query) ||
+          r.code.toLowerCase().includes(query) ||
+          r.name.toLowerCase().includes(query) ||
+          r.origin.toLowerCase().includes(query) ||
+          r.destination.toLowerCase().includes(query) ||
+          (r.via && r.via.toLowerCase().includes(query))
+        ).slice(0, 8);
+
+        const matchedStops = Object.values(STOPS_DATABASE).filter(s => 
+          s.name.toLowerCase().includes(query) || 
+          s.teName.includes(query)
+        ).slice(0, 6);
+
+        if (matchedRoutes.length === 0 && matchedStops.length === 0) {
+          dropdown.innerHTML = `<div class="p-4 text-xs text-slate-400 text-center font-medium">No matching routes or stops found for "${val}".</div>`;
+        } else {
+          let html = '';
+
+          if (matchedRoutes.length > 0) {
+            html += `
+              <div class="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Matching Bus Routes (${matchedRoutes.length})
+              </div>
+            `;
+            html += matchedRoutes.map(r => `
+              <button onclick="app.selectAndOpenRoute('${r.code}'); app.clearSearch();" class="w-full text-left p-3 border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 transition flex items-center justify-between">
+                <div class="flex items-center space-x-2.5">
+                  <span class="w-8 h-8 rounded-lg ${r.category === 'Suburban Metro' ? 'bg-emerald-600' : 'bg-errared'} text-white text-xs font-black flex items-center justify-center shrink-0">${r.code}</span>
+                  <div>
+                    <h5 class="text-xs font-black text-slate-900 dark:text-white uppercase">${r.name}</h5>
+                    <span class="text-[10px] font-bold text-slate-500 dark:text-slate-300">${r.type} • Fare ₹${r.fare} • ${r.distanceKm} km</span>
+                  </div>
+                </div>
+                <span class="text-xs text-errared font-bold shrink-0 ml-2">View Route ➔</span>
+              </button>
+            `).join('');
+          }
+
+          if (matchedStops.length > 0) {
+            html += `
+              <div class="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Matching Bus Stops & Hubs (${matchedStops.length})
+              </div>
+            `;
+            html += matchedStops.map(s => `
+              <button onclick="app.changeUserLocation('${s.id}'); app.clearSearch();" class="w-full text-left p-3 border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 transition flex items-center justify-between">
+                <div class="flex items-center space-x-2.5">
+                  <i class="fa-solid fa-location-dot text-errared text-sm shrink-0"></i>
+                  <div>
+                    <span class="text-xs font-bold text-slate-900 dark:text-slate-200">${s.name}</span>
+                    <span class="text-[10px] text-slate-500 dark:text-slate-400 block">${s.teName}</span>
+                  </div>
+                </div>
+                <span class="text-[10px] font-bold text-slate-500 dark:text-slate-400 shrink-0 ml-2">Set Active Hub</span>
+              </button>
+            `).join('');
+          }
+
+          dropdown.innerHTML = html;
+        }
+
+        dropdown.classList.remove('hidden');
+      }
+
+      clearSearch() {
+        document.getElementById('input-search-stop').value = '';
+        document.getElementById('dropdown-search-results').classList.add('hidden');
+        document.getElementById('btn-clear-search').classList.add('hidden');
+      }
+
+      renderSavedStops() {
+        const container = document.getElementById('container-saved-items');
+        if (!container) return;
+
+        let html = '';
+
+        if (this.savedRoutes.length > 0) {
+          html += `
+            <div class="mb-4">
+              <h4 class="text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-2">Saved Favorite Routes</h4>
+              <div class="space-y-2">
+          `;
+          html += this.savedRoutes.map(rCode => {
+            const r = ROUTES_DATABASE[rCode];
+            if (!r) return '';
+            return `
+              <div class="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 p-3.5 rounded-xl flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                  <span class="w-8 h-8 rounded-lg bg-errared text-white text-xs font-black flex items-center justify-center">${r.code}</span>
+                  <div>
+                    <h4 class="text-xs font-extrabold text-slate-900 dark:text-white uppercase">${r.name}</h4>
+                    <p class="text-[10px] text-slate-500 dark:text-slate-400">${r.teName} • Fare ₹${r.fare}</p>
+                  </div>
+                </div>
+                <button onclick="app.selectAndOpenRoute('${r.code}')" class="bg-errared text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm hover:bg-errared-600 transition">
+                  View Route
+                </button>
+              </div>
+            `;
+          }).join('');
+          html += `</div></div>`;
+        }
+
+        if (this.savedStops.length > 0) {
+          html += `
+            <div>
+              <h4 class="text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-2">Saved Transit Hubs</h4>
+              <div class="space-y-2">
+          `;
+          html += this.savedStops.map(sKey => {
+            const stop = STOPS_DATABASE[sKey];
+            if (!stop) return '';
+            return `
+              <div class="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 p-3.5 rounded-xl flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                  <i class="fa-solid fa-bookmark text-amber-500 text-base"></i>
+                  <div>
+                    <h4 class="text-xs font-extrabold text-slate-900 dark:text-white">${stop.name}</h4>
+                    <p class="text-[10px] text-slate-500 dark:text-slate-400">${stop.teName}</p>
+                  </div>
+                </div>
+                <button onclick="app.changeUserLocation('${stop.id}'); app.switchTab('home');" class="bg-errared text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm hover:bg-errared-600 transition">
+                  View Live
+                </button>
+              </div>
+            `;
+          }).join('');
+          html += `</div></div>`;
+        }
+
+        if (!html) {
+          container.innerHTML = `<p class="text-xs text-slate-400 text-center py-8">No saved favorites yet.</p>`;
+        } else {
+          container.innerHTML = html;
+        }
+      }
+
+      updateUIComponents() {
+        this.renderNearbyBuses();
+        this.updateMapMarkers();
+      }
+
+      renderUI() {
+        this.renderNearbyBuses();
+        this.renderRouteDirectory();
+        this.renderSavedStops();
+      }
+
+      toggleLanguage() {
+        this.currentLang = this.currentLang === 'en' ? 'te' : 'en';
+        localStorage.setItem('errabus_lang', this.currentLang);
+        document.getElementById('lang-btn-label').innerText = this.currentLang === 'en' ? 'తెలుగు' : 'English';
+        this.updateTranslations();
+        this.renderRouteDetails();
+      }
+
+      updateTranslations() {
+        const langData = I18N[this.currentLang];
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+          const key = el.getAttribute('data-i18n');
+          if (langData[key]) {
+            el.innerText = langData[key];
+          }
+        });
+      }
+
+      toggleDarkMode() {
+        this.currentTheme = this.currentTheme === 'dark' ? 'light' : 'dark';
+        this.applyTheme(this.currentTheme);
+      }
+
+      getTileLayerUrl(theme = this.currentTheme) {
+        if (this.mapStyle === 'satellite') {
+          return 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+        }
+        if (theme === 'dark') {
+          return 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}';
+        }
+        // Default: Full street and transit map (100% free, NO API key required, never blocked)
+        return 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';
+      }
+
+      toggleMapStyle() {
+        this.mapStyle = (this.mapStyle === 'streets') ? 'satellite' : 'streets';
+        const btn = document.getElementById('btn-map-style');
+        if (btn) {
+          btn.innerHTML = this.mapStyle === 'satellite' 
+            ? '<i class="fa-solid fa-map text-amber-400"></i>' 
+            : '<i class="fa-solid fa-earth-asia text-emerald-500"></i>';
+        }
+        this.updateMapTileTheme();
+      }
+
+      updateMapTileTheme() {
+        if (!this.leafletMap) return;
+        const tileUrl = this.getTileLayerUrl();
+
+        if (this.currentTileLayer) {
+          try { this.leafletMap.removeLayer(this.currentTileLayer); } catch(e){}
+        }
+        this.currentTileLayer = L.tileLayer(tileUrl, {
+          maxZoom: 19,
+          attribution: 'Tiles &copy; Esri &mdash; APSRTC ERRA BUS Smart Transit'
+        }).addTo(this.leafletMap);
+      }
+
+      applyTheme(theme) {
+        localStorage.setItem('errabus_theme', theme);
+        const icon = document.getElementById('theme-icon');
+        if (theme === 'dark') {
+          document.documentElement.classList.add('dark');
+          if (icon) icon.className = 'fa-solid fa-sun text-amber-400';
+        } else {
+          document.documentElement.classList.remove('dark');
+          if (icon) icon.className = 'fa-solid fa-moon text-slate-700';
+        }
+        if (this.leafletMap) {
+          this.updateMapTileTheme();
+        }
+      }
+
+      openIssueReportModal() {
+        document.getElementById('modal-report-issue').classList.remove('hidden');
+      }
+
+      closeModal(id) {
+        document.getElementById(id).classList.add('hidden');
+      }
+
+      submitIssueReport() {
+        this.closeModal('modal-report-issue');
+        alert('Thank you! Issue report dispatched to APSRTC Control Center.');
+      }
+
+      showAlertsModal() {
+        document.getElementById('modal-service-alerts').classList.remove('hidden');
+      }
+
+      viewFullRouteTimeline() {
+        const sheetBus = document.getElementById('sheet-route-code').innerText;
+        this.closeBottomSheet();
+        this.selectAndOpenRoute(sheetBus);
+      }
+    }
+
+    window.app = new ErraBusApp();
+    var app = window.app;
+  </script>
+</body>
+</html>
